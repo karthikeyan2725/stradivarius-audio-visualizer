@@ -1,0 +1,3 @@
+glfw: cmake -S ./installs/glfw -B ./compiled/glfw -G "Unix Makefiles"  
+Move generated lib to /lib and /include files from uncompiled to /include
+link libGL.so: -lGL
