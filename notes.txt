@@ -1,8 +1,23 @@
+Setup GLFW:
 glfw: cmake -S ./installs/glfw -B ./compiled/glfw -G "Unix Makefiles"  
 Move generated lib to /lib and /include files from uncompiled to /include
-link libGL.so: -lGL
 
+find gl version:
 glxinfo | grep "OpenG"
+
+Convert mp3 to wav:
+ffmpeg -i ./wav/memphis-trap.mp3 -acodec pcm_s16le -ac 1 -ar 16000 ./wav/memphis-trap.wav
+
+Sound systems for cpp:
+openAl-soft:
+    https://ffainelli.github.io/openal-example/
+    https://github.com/kcat/openal-soft/wiki/Programmer%27s-Guide
+miniaudio:
+    https://miniaud.io/docs/manual/index.html
+soloud:
+    https://solhsa.com/soloud/quickstart.html
+sdlmixer
+portaudio
 
 openglsl:
 vec4 for glPosition
