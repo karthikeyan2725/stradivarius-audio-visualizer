@@ -1,21 +1,18 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <iostream>
-#include <cstdlib>
 #include <audiofile/AudioFile.h>
 #include <miniaudio.h>
-#include <chrono>
 
+#include <iostream>
+#include <chrono>
 using namespace std::chrono;
+
+#define APPNAME "Stradivarius "
+#define ONE_SECOND 1000
+#define FPS 60
 
 void resize_frame_buffer_on_window(GLFWwindow* window, int width, int height){
     glViewport(0, 0, width, height);
-}
-
-float generateRandomFloat(int min, int max){
-    int decimal = min + (rand() % (int)(max - min));
-    float fractional = ((float)rand() / (float) RAND_MAX);
-    return (float)(decimal + fractional);
 }
 
 int main(){
@@ -29,7 +26,7 @@ int main(){
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Stradivarius", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(800, 600, APPNAME, NULL, NULL);
     if(window == NULL){
         std::cout << "Failed to create a GLFW Window" << std::endl;
         glfwTerminate();
@@ -39,6 +36,7 @@ int main(){
 
     if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){
         std::cout << "Failed to initalize GLAD" << std::endl;
+        glfwTerminate();
         return -1;
     }
 
@@ -48,33 +46,27 @@ int main(){
 
     glfwSetFramebufferSizeCallback(window, resize_frame_buffer_on_window);
 
-    std::cout << "Strad has started..." << std::endl;
-
-    // AudioFile test
     AudioFile<double> audioFile;
     audioFile.load("audio/memphis-trap.wav");
     audioFile.printSummary();
-    int numSamples = audioFile.getNumSamplesPerChannel();
-    for(int i = 0; i < numSamples; i++){
-        double sample = audioFile.samples[0][i];
+    int sampleRate = audioFile.getSampleRate();
+    int numVertices = 16000 * 3;
+    int signalVertexDataSize = numVertices * sizeof(float);
+    float *signalVertexData = new float[numVertices];
+    for(int i = 0; i < numVertices; i+=3){
+        signalVertexData[i] = ((float)i/3)/16000 - 0.5f;
+        signalVertexData[i+1] = 0.0f;
+        signalVertexData[i+2] = 0.0f;
     }
 
-    float signal[16000 * 3] = {0};
-    for(int i = 0; i < 16000 * 3; i+=3){
-        signal[i] = ((float)i/3)/16000 - 0.5f;
-        // std::cout << signal[i] << std::endl;
-        signal[i+1] = audioFile.samples[0][i];
-        signal[i+2] = 0.0f;
-    }
+    unsigned int vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
 
-    unsigned int signalVao;
-    glGenVertexArrays(1, &signalVao);
-    glBindVertexArray(signalVao);
-
-    unsigned int signalVbo;
-    glGenBuffers(1, &signalVbo);
-    glBindBuffer(GL_ARRAY_BUFFER, signalVbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(signal), signal, GL_STATIC_DRAW);
+    unsigned int vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, signalVertexDataSize, signalVertexData, GL_STATIC_DRAW);
     
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
@@ -99,7 +91,7 @@ int main(){
     glShaderSource(vertexShader, 1, &vertexShaderSrc, NULL);
     glCompileShader(vertexShader);
     glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if(!success){
+    if(!success){  
         glGetShaderInfoLog(vertexShader, 1000, NULL, message);
         std::cout << "Failed to compile Vertex Shader: " << message << std::endl;
     }
@@ -113,76 +105,71 @@ int main(){
         std::cout << "Failed to compile Fragment Shader: " << message << std::endl;
     }
     
-    unsigned int shader = glCreateProgram();
-    glAttachShader(shader, vertexShader);
-    glAttachShader(shader, fragmentShader);
-    glLinkProgram(shader);
-    glGetProgramiv(shader, GL_LINK_STATUS, &success);
+    unsigned int shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
     if(!success){
-        glGetProgramInfoLog(shader, 1000, NULL, message);
+        glGetProgramInfoLog(shaderProgram, 1000, NULL, message);
         std::cout << "Failed to link shaders: " << message << std::endl;
     }
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-    fflush(0);
     
     ma_result result;
     ma_engine engine;
-
     result = ma_engine_init(NULL, &engine);
     if(result != MA_SUCCESS){
         std::cout << "Failed to initialize Miniaudio Engine" << std::endl;
+        glfwTerminate();
         return -1;
     } 
-
+    ma_engine_play_sound(&engine, "./audio/memphis-trap.wav", NULL);
     
-    glClearColor(1.0f, 0.0f, 0.5f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    int offset = 0;
-    float prevTime = glfwGetTime(), currTime;
+    float prevTime = glfwGetTime(), currTime, fps, deltaTime;
     int frameCount = 0;
     auto cPrev = system_clock::now();
-    auto cNow = system_clock::now();
-    ma_engine_play_sound(&engine, "/run/media/karthik/Shared Volume/1_projects/1_dev/strad_audio_visualizer/audio/memphis-trap.wav", NULL);
+    
+    int offset = 0;
+
+    glClearColor(1.0f, 0.0f, 0.5f, 1.0f);
     while(!glfwWindowShouldClose(window)){
-        // for(int i = 0; i < 300; i+=3){
-        //     signal[i+1] = generateRandomFloat(0, 1);
-        //     std::cout << signal[i+1] << std::endl;
-        // }
-        for(int i = 0; i < 16000 * 3; i+=3){
-            signal[i+1] = audioFile.samples[0][i + (int)(16000/50.0f) * offset];
-        }
-        offset+=1;
-        glBindBuffer(GL_ARRAY_BUFFER, signalVao);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(signal), signal, GL_STATIC_DRAW);
         glClear(GL_COLOR_BUFFER_BIT);
-        glUseProgram(shader);
-        glBindVertexArray(signalVao);
-        glDrawArrays(GL_LINE_STRIP, 0,16000);
+
+        for(int i = 0; i < numVertices; i+=3){
+            signalVertexData[i+1] = audioFile.samples[0][i + (int)((float)16000 / FPS) * offset];
+        }
+        offset++;
+        glBindBuffer(GL_ARRAY_BUFFER, vao);
+        glBufferData(GL_ARRAY_BUFFER, signalVertexDataSize, signalVertexData, GL_STATIC_DRAW);
+        glUseProgram(shaderProgram);
+        glBindVertexArray(vao);
+        glDrawArrays(GL_LINE_STRIP, 0, 16000);
         
         currTime = glfwGetTime();
-        float change = currTime - prevTime;
-        if(change >= 1){
-            float fps = frameCount / change;
-            std::cout << "FPS: " << fps << std::endl;
+        deltaTime = currTime - prevTime;
+        if(currTime - prevTime > 1){
+            fps = frameCount / deltaTime;
             frameCount = 0;
             prevTime = currTime;
+
+            glfwSetWindowTitle(window, (APPNAME + std::to_string(fps)).c_str());
         }
 
-        // cNow = system_clock::now();
-        // std::cout << duration_cast<milliseconds>((cNow - cPrev)).count() << std::endl;
-        while(duration_cast<milliseconds>((system_clock::now() - cPrev)).count() <= (1000/50.0f)){
+        while(duration_cast<milliseconds>((system_clock::now() - cPrev)).count() <= ((float)ONE_SECOND / FPS)){
             
         }
-        cPrev = system_clock::now();
         glfwSwapBuffers(window);
+        cPrev = system_clock::now();
         frameCount++;
         glfwPollEvents();
     }
 
+    delete signalVertexData;
     ma_engine_uninit(&engine);
-
     glfwTerminate();
+
     return 0;
 }
  
