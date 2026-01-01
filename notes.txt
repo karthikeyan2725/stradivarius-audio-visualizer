@@ -21,3 +21,6 @@ portaudio
 
 openglsl:
 vec4 for glPosition
+
+cpp:
+classes, pointers

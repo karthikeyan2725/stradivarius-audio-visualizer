@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <chrono>
+#include <vector>
 using namespace std::chrono;
 
 #define APPNAME "Stradivarius "
@@ -14,6 +15,101 @@ using namespace std::chrono;
 void resize_frame_buffer_on_window(GLFWwindow* window, int width, int height){
     glViewport(0, 0, width, height);
 }
+
+class Waveform {
+    std::vector<std::vector<double>> audioSignal;
+    float *vertexData;
+    unsigned int vertexDataSize;
+    unsigned int numVertices;
+    unsigned int offset = 0;
+    unsigned int vao;
+    unsigned int vbo;
+    unsigned int shaderProgram;
+    const char* vertexShaderSrc = 
+        "#version 330 core\n" 
+        "layout (location = 0) in vec3 point;\n"
+        "void main(){\n"
+            "gl_Position = vec4(point.x, point.y, point.z, 1.0);\n"
+        "}\0"; // TODO: Load from file 
+    const char* fragmentShaderSrc = 
+        "#version 330 core\n"
+        "out vec4 color;"
+        "void main(){\n"
+            "color = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
+        "}\0";
+public:
+    Waveform(std::vector<std::vector<double>> audioSignal){
+        this->audioSignal = audioSignal;
+        numVertices = 16000 * 3;
+        vertexDataSize = numVertices * sizeof(float);
+        vertexData = new float[numVertices]; // TODO: Make Double
+        for(int i = 0; i < numVertices; i+=3){
+            vertexData[i] = ((float)i/3)/16000 - 0.5f;
+            vertexData[i+1] = 0.0f;
+            vertexData[i+2] = 0.0f;
+        }
+
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+        
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, vertexDataSize, vertexData, GL_DYNAMIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        int success;
+        char message[1000];
+    
+        unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &vertexShaderSrc, NULL);
+        glCompileShader(vertexShader);
+        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+        if(!success){  
+            glGetShaderInfoLog(vertexShader, 1000, NULL, message);
+            std::cout << "Failed to compile Vertex Shader: " << message << std::endl;
+        }
+
+        unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, 1, &fragmentShaderSrc, NULL);
+        glCompileShader(fragmentShader);
+        glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+        if(!success){
+            glGetShaderInfoLog(fragmentShader, 1000, NULL, message);
+            std::cout << "Failed to compile Fragment Shader: " << message << std::endl;
+        }
+
+        shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragmentShader);
+        glLinkProgram(shaderProgram);
+        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+        if(!success){
+            glGetProgramInfoLog(shaderProgram, 1000, NULL, message);
+            std::cout << "Failed to link shaders: " << message << std::endl;
+        }
+
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+    }
+
+    void draw(){
+        for(int i = 0; i < numVertices; i+=3){
+            vertexData[i+1] = audioSignal[0][i + (int)((float)16000 / FPS) * offset];
+        }
+        offset++;
+        glBindBuffer(GL_ARRAY_BUFFER, vao);
+        glBufferData(GL_ARRAY_BUFFER, vertexDataSize, vertexData, GL_STATIC_DRAW);
+        glUseProgram(shaderProgram);
+        glBindVertexArray(vao);
+        glDrawArrays(GL_LINE_STRIP, 0, 16000);
+    }
+
+    ~Waveform(){
+        delete vertexData;
+    }
+};
 
 int main(){
     int glfwInitialized = glfwInit();
@@ -49,73 +145,7 @@ int main(){
     AudioFile<double> audioFile;
     audioFile.load("audio/memphis-trap.wav");
     audioFile.printSummary();
-    int sampleRate = audioFile.getSampleRate();
-    int numVertices = 16000 * 3;
-    int signalVertexDataSize = numVertices * sizeof(float);
-    float *signalVertexData = new float[numVertices];
-    for(int i = 0; i < numVertices; i+=3){
-        signalVertexData[i] = ((float)i/3)/16000 - 0.5f;
-        signalVertexData[i+1] = 0.0f;
-        signalVertexData[i+2] = 0.0f;
-    }
-
-    unsigned int vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    unsigned int vbo;
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, signalVertexDataSize, signalVertexData, GL_STATIC_DRAW);
-    
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    const char* vertexShaderSrc = 
-        "#version 330 core\n" 
-        "layout (location = 0) in vec3 point;\n"
-        "void main(){\n"
-           "gl_Position = vec4(point.x, point.y, point.z, 1.0);\n"
-        "}\0";
-    const char* fragmentShaderSrc = 
-        "#version 330 core\n"
-        "out vec4 color;"
-        "void main(){\n"
-            "color = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
-        "}\0";
-
-    int success;
-    char message[1000];
-  
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSrc, NULL);
-    glCompileShader(vertexShader);
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if(!success){  
-        glGetShaderInfoLog(vertexShader, 1000, NULL, message);
-        std::cout << "Failed to compile Vertex Shader: " << message << std::endl;
-    }
-
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSrc, NULL);
-    glCompileShader(fragmentShader);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if(!success){
-        glGetShaderInfoLog(fragmentShader, 1000, NULL, message);
-        std::cout << "Failed to compile Fragment Shader: " << message << std::endl;
-    }
-    
-    unsigned int shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if(!success){
-        glGetProgramInfoLog(shaderProgram, 1000, NULL, message);
-        std::cout << "Failed to link shaders: " << message << std::endl;
-    }
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    Waveform waveform(audioFile.samples);
     
     ma_result result;
     ma_engine engine;
@@ -133,19 +163,11 @@ int main(){
     
     int offset = 0;
 
-    glClearColor(1.0f, 0.0f, 0.5f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     while(!glfwWindowShouldClose(window)){
         glClear(GL_COLOR_BUFFER_BIT);
 
-        for(int i = 0; i < numVertices; i+=3){
-            signalVertexData[i+1] = audioFile.samples[0][i + (int)((float)16000 / FPS) * offset];
-        }
-        offset++;
-        glBindBuffer(GL_ARRAY_BUFFER, vao);
-        glBufferData(GL_ARRAY_BUFFER, signalVertexDataSize, signalVertexData, GL_STATIC_DRAW);
-        glUseProgram(shaderProgram);
-        glBindVertexArray(vao);
-        glDrawArrays(GL_LINE_STRIP, 0, 16000);
+        waveform.draw();
         
         currTime = glfwGetTime();
         deltaTime = currTime - prevTime;
@@ -166,7 +188,6 @@ int main(){
         glfwPollEvents();
     }
 
-    delete signalVertexData;
     ma_engine_uninit(&engine);
     glfwTerminate();
 
