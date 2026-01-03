@@ -19,6 +19,8 @@ soloud:
 sdlmixer
 portaudio
 
+Fast Fourier Transform : FFTw3, changed minimum version to 3.5 in cmake.
+
 openglsl:
 vec4 for glPosition
 
