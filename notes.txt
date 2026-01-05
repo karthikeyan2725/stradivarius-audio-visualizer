@@ -6,7 +6,7 @@ find gl version:
 glxinfo | grep "OpenG"
 
 Convert mp3 to wav:
-ffmpeg -i ./wav/memphis-trap.mp3 -acodec pcm_s16le -ac 1 -ar 16000 ./wav/memphis-trap.wav
+ffmpeg -i ./audio/tomada.mp3 -acodec pcm_s16le -ac 1 -ar 44100 ./audio/tomada.wav
 
 Sound systems for cpp:
 openAl-soft:
