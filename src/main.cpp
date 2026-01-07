@@ -144,6 +144,7 @@ class Waveform2 {
         "#version 330 core\n" 
         "layout (location = 0) in vec3 point;\n"
         "void main(){\n"
+            // "gl_Position = vec4(point, 1.0f);\n"
             "gl_Position = vec4((point.y + 0.5f) * cos(point.x * 6.2f), (point.y + 0.5f)* sin(point.x * 6.2f), point.z, 1.0);\n"
         "}\0"; // TODO: Load from file 
     const char* fragmentShaderSrc = 
@@ -156,12 +157,13 @@ class Waveform2 {
         Waveform2(std::vector<std::vector<double>> audioSignal, int sampleRate){
             this->audioSignal = audioSignal;
             this->sampleRate = sampleRate;
-            frameSize = 1024 * 2;
+            frameSize = 1024 / 2;
             frame = new fftw_complex[frameSize];
             frequencyBands = new fftw_complex[frameSize];
             plan = fftw_plan_dft_1d(frameSize, frame, frequencyBands, FFTW_FORWARD,  FFTW_MEASURE);   
             startIndex = (20.0f * frameSize) / sampleRate ;
             size = ((20000.0f * frameSize)/sampleRate) - startIndex;
+            size /= 2; // TODO: Not properly sizing between 20-20kHz
             std::cout << "size" << size << std::endl;
 
             numVertices = size * 3;
@@ -223,12 +225,35 @@ class Waveform2 {
                 frame[i][0] = audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
                 frame[i][1] = 0;
             }
+
+            double a0 = 0.5;
+            double a1 = 1 - a0;
+            double w;
+            for(int i = 0; i < frameSize; i++){
+                w = a0 - a1 * cos((2*M_PI*i)/frameSize);
+                frame[i][0] *= w;
+            }
+
             fftw_execute(plan);
             int j = startIndex;
+          
+            int nObs = 10;
             for(int i = 0; i < numVertices; i+=3){ // TODO: Handle out of bound
                 double real = frequencyBands[j][0];
                 double complex = frequencyBands[j][1];
-                frameData[i+1] =  sqrt(real * real + complex * complex) / (frameSize/8); 
+                double curr = sqrt(real * real + complex * complex) / (frameSize/64); 
+                // curr = log(curr) / log(10);
+                curr /= frameSize/128;
+                int sum = 0;
+                int n = 0;
+                for(int x = (i-3)/3; x >= 0 && x >= (i-3-nObs*3)/3; x -= 3){
+                    sum += frameData[x+1];
+                    n++;
+                }
+                // frameData[i+1] = (sum + curr) / (n+1);
+                double limit = 0.3f;
+                if(curr <= limit) frameData[i+1] = curr; //
+                else frameData[i+1] = limit;
                 j++;
             }
 
@@ -238,7 +263,7 @@ class Waveform2 {
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
             glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
             glUseProgram(shaderProgram);
-            glPointSize(2.0f); // TODO: Circle feature
+            glPointSize(3.0f); // TODO: Circle feature
             glDrawArrays(GL_POINTS, 0, size);
         }
 
