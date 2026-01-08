@@ -20,7 +20,7 @@
 #define FPS 120
 
 void resize_frame_buffer_on_window(GLFWwindow* window, int width, int height){
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, width, height); // TODO: handle resize properly
 }
 
 class Waveform1 {
@@ -139,6 +139,8 @@ class Waveform2 {
     unsigned int offset = 0;
     unsigned int vao;
     unsigned int vbo;
+    unsigned int fbo;
+    unsigned int texture;
     unsigned int shaderProgram;
     const char* vertexShaderSrc = 
         "#version 330 core\n" 
@@ -153,8 +155,36 @@ class Waveform2 {
         "void main(){\n"
             "color = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
         "}\0";
+    unsigned int screenShaderProgram;
+    const char* screenVertexShaderSrc = 
+        "#version 330 core\n" 
+        "layout (location = 0) in vec2 point;\n"
+        "layout (location = 1) in vec2 texCoord;\n"
+        "out vec2 fTexCoord;\n"
+        "void main(){\n"
+            "fTexCoord = texCoord;\n"
+            "gl_Position = vec4(point.x, point.y, 0.0f, 1.0f);\n"
+        "}\0"; // TODO: Load from file 
+    const char* screenFragmentShaderSrc = 
+        "#version 330 core\n"
+        "in vec2 fTexCoord;\n"
+        "uniform sampler2D sTexture;\n"
+        "out vec4 color;\n"
+        "void main(){\n"
+            "color = vec4(vec3(1.0f - texture(sTexture, fTexCoord)), 1.0f);\n"
+        "}\0";
+    float quadVertex[24] = {
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+
+        -1.0f,  1.0f,  0.0f, 1.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f
+    };
+    unsigned int quadVBO;
     public:
-        Waveform2(std::vector<std::vector<double>> audioSignal, int sampleRate){
+        Waveform2(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
             this->audioSignal = audioSignal;
             this->sampleRate = sampleRate;
             frameSize = 1024 / 2;
@@ -178,6 +208,28 @@ class Waveform2 {
             glGenVertexArrays(1, &vao);
             glBindVertexArray(vao);
             
+            glGenFramebuffers(1, &fbo);
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+            
+            if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+                std::cout << "Failed to setup framebuffer" << std::endl;
+            }
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            glGenBuffers(1, &quadVBO);
+            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertex), quadVertex, GL_STATIC_DRAW);
+
             glGenBuffers(1, &vbo);
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
             glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
@@ -218,9 +270,40 @@ class Waveform2 {
 
             glDeleteShader(vertexShader);
             glDeleteShader(fragmentShader);
+
+            unsigned int screenVertexShader = glCreateShader(GL_VERTEX_SHADER);
+            glShaderSource(screenVertexShader, 1, &screenVertexShaderSrc, NULL);
+            glCompileShader(screenVertexShader);
+            glGetShaderiv(screenVertexShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(screenVertexShader, 1000, NULL, message);
+                std::cout << "Failed to compile Screen Vertex Shader: " << message << std::endl;
+            }
+
+            unsigned int screenFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(screenFragmentShader, 1, &screenFragmentShaderSrc, NULL);
+            glCompileShader(screenFragmentShader);
+            glGetShaderiv(screenFragmentShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(screenFragmentShader, 1000, NULL, message);
+                std::cout << "Failed to compile screen Vertex Shader: " << message << std::endl;
+            }
+
+            screenShaderProgram = glCreateProgram();
+            glAttachShader(screenShaderProgram, screenVertexShader);
+            glAttachShader(screenShaderProgram, screenFragmentShader);
+            glLinkProgram(screenShaderProgram);
+            glGetProgramiv(screenShaderProgram, GL_LINK_STATUS, &success);
+            if(!success){
+                glGetProgramInfoLog(screenShaderProgram, 1000, NULL, message);
+                std::cout << "Failed to Link the screen shader program: " << message << std::endl;
+            }
         }
 
         void draw(int currentMillisecond){
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            glClearColor(0.1, 0.1, 0.1f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
             for(int i = 0; i < frameSize; i++){
                 frame[i][0] = audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
                 frame[i][1] = 0;
@@ -257,20 +340,35 @@ class Waveform2 {
                 j++;
             }
 
-            glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
-            glEnableVertexAttribArray(0);
             // glBindVertexArray(vao);
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
             glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
             glUseProgram(shaderProgram);
             glPointSize(3.0f); // TODO: Circle feature
             glDrawArrays(GL_POINTS, 0, size);
+            
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glClearColor(1.0f, 0.0f, 0.0f, 1.0f); 
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            glUseProgram(screenShaderProgram);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            // glBindVertexArray(vao);
+            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
+            glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
         ~Waveform2(){
             delete frame;
             delete frequencyBands;
             delete frameData;
+            glDeleteFramebuffers(1, &fbo);
             fftw_destroy_plan(plan);
             fftw_cleanup();
 
@@ -627,7 +725,7 @@ int main(){
     audioFile.printSummary();
     int sampleRate = audioFile.getSampleRate();
     Waveform1 waveform1(audioFile.samples, sampleRate);
-    Waveform2 waveform2(audioFile.samples, sampleRate);
+    Waveform2 waveform2(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
     Waveform3 waveform3(audioFile.samples, sampleRate);
 
     ma_result result;
@@ -649,10 +747,10 @@ int main(){
 
     int choice = 1;
     
-    glClearColor(0.0f, 0.1f, 0.0f, 1.0f);
     int c = 1;
     while(!glfwWindowShouldClose(window)){
         glClear(GL_COLOR_BUFFER_BIT);
+        glClearColor(0.0f, 0.1f, 0.0f, 1.0f);
         
         ma_int64 currentMillisecond = ma_engine_get_time_in_milliseconds(&engine);
         switch(choice){
