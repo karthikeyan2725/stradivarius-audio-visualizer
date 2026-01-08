@@ -388,8 +388,8 @@ class Waveform3 {
             glUseProgram(shaderProgram);
             glm::mat4 view = glm::mat4(1.0f);
             view = glm::scale(view, glm::vec3(2.0f, 2.0f, 0.5f));
-            view = glm::rotate(view, 40.0f * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
-            view = glm::rotate(view, 40.0f * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
+            view = glm::rotate(view, 30.0f * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
+            view = glm::rotate(view, -140.0f * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
             view = glm::translate(view, glm::vec3(-0.0f, 0.0f, 0.0f));
             // std::cout << glm::to_string(view) << std::endl;
             int viewUniformLoc = glGetUniformLocation(shaderProgram, "view");
@@ -403,17 +403,29 @@ class Waveform3 {
                     frameData[i] = frameData[i-1];
                 }
                 frameData[0] = f;
-
+                
                 for(int i = 0; i < frameSize; i++){
                     frame[i][0] = audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
                     frame[i][1] = 0;
                 }
+
+                double a0 = 0.5f; // TODO: Move to windowing function code.
+                double a1 = 1 - a0;
+                double w;
+                for(int i = 0; i < frameSize; i++){
+                    w = a0 - a1 * cos((2*M_PI*i)/frameSize);
+                    frame[i][0] *= w;
+                }
+
                 fftw_execute(plan);
                 int j = startIndex;
                 for(int i = 0; i < numVertices; i+=3){ // TODO: Handle out of bound
                     double real = frequencyBands[j][0];
                     double complex = frequencyBands[j][1];
                     frameData[0][i+1] = sqrt(real * real + complex * complex) / (frameSize/4); 
+
+                    double limit = 0.2f;
+                    if(frameData[0][i+1] > limit) frameData[0][i+1] = limit;
                     j++;
                 }
             }
@@ -431,6 +443,7 @@ class Waveform3 {
                 if(swap){
                     glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData[i], GL_DYNAMIC_DRAW);
                 }
+                glPointSize(1.0f);
                 glDrawArrays(GL_POINTS, 0, size);
             }
         }
