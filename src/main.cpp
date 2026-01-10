@@ -139,12 +139,13 @@ class Waveform2 {
     unsigned int offset = 0;
     unsigned int vao;
     unsigned int vbo;
-    unsigned int fbo;
-    unsigned int texture;
+    unsigned int *fbo;
+    unsigned int *texture;
     unsigned int shaderProgram;
     const char* vertexShaderSrc = 
         "#version 330 core\n" 
         "layout (location = 0) in vec3 point;\n"
+        "out vec3 p;\n"
         "void main(){\n"
             // "gl_Position = vec4(point, 1.0f);\n"
             "gl_Position = vec4((point.y + 0.5f) * cos(point.x * 6.2f), (point.y + 0.5f)* sin(point.x * 6.2f), point.z, 1.0);\n"
@@ -152,11 +153,12 @@ class Waveform2 {
     const char* fragmentShaderSrc = 
         "#version 330 core\n"
         "out vec4 color;\n"
+        "in vec3 p;\n"
         "void main(){\n"
-            "color = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
+            "color = vec4(0.9f, 0.3f, 0.3f, 1.0f);\n"
         "}\0";
-    unsigned int screenShaderProgram;
-    const char* screenVertexShaderSrc = 
+    unsigned int extractBrightShaderProgram;
+    const char* extractBrightVertexShaderSrc = 
         "#version 330 core\n" 
         "layout (location = 0) in vec2 point;\n"
         "layout (location = 1) in vec2 texCoord;\n"
@@ -165,13 +167,95 @@ class Waveform2 {
             "fTexCoord = texCoord;\n"
             "gl_Position = vec4(point.x, point.y, 0.0f, 1.0f);\n"
         "}\0"; // TODO: Load from file 
-    const char* screenFragmentShaderSrc = 
+    const char* extractBrightFragmentShaderSrc = 
         "#version 330 core\n"
         "in vec2 fTexCoord;\n"
         "uniform sampler2D sTexture;\n"
         "out vec4 color;\n"
         "void main(){\n"
-            "color = vec4(vec3(1.0f - texture(sTexture, fTexCoord)), 1.0f);\n"
+            "vec4 c = texture(sTexture, fTexCoord);\n"
+            "float brightness = (c.r + c.g + c.b)/3.0f;\n"
+            "if(brightness > 20.0f) color = c;\n" // TODO: FIX
+            "else color = vec4(0.0f, 0.0f, 0.0f, 1.0f);\n"
+        "}\0";
+    unsigned int copyShaderProgram;
+    const char* copyTextureVertexShaderSrc = 
+        "#version 330 core\n" 
+        "layout (location = 0) in vec2 point;\n"
+        "layout (location = 1) in vec2 texCoord;\n"
+        "out vec2 fTexCoord;\n"
+        "void main(){\n"
+            "fTexCoord = texCoord;\n"
+            "gl_Position = vec4(point.x, point.y, 0.0f, 1.0f);\n"
+        "}\0"; // TODO: Load from file 
+    const char* copyTextureFragmentShaderSrc = 
+        "#version 330 core\n"
+        "in vec2 fTexCoord;\n"
+        "uniform sampler2D sTexture;\n"
+        "out vec4 color;\n"
+        "void main(){\n"
+            "color = texture(sTexture, fTexCoord);\n"
+        "}\0";
+    unsigned int blurShaderProgram;
+    const char* blurVertexShaderSrc = 
+        "#version 330 core\n" 
+        "layout (location = 0) in vec2 point;\n"
+        "layout (location = 1) in vec2 texCoord;\n"
+        "out vec2 fTexCoord;\n"
+        "void main(){\n"
+            "fTexCoord = texCoord;\n"
+            "gl_Position = vec4(point.x, point.y, 0.0f, 1.0f);\n"
+        "}\0"; // TODO: Load from file 
+    const char* blurFragmentShaderSrc =
+        "#version 330 core\n"
+        "in vec2 fTexCoord;\n"
+        "uniform sampler2D sTexture;\n"
+        "uniform bool horizontal = false;\n"
+        "uniform float weight[5] = float[] (0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f);\n"
+        "out vec4 color;\n"
+        "void main(){\n"
+            // "color = texture(sTexture, fTexCoord);\n"
+            "vec2 tex_offset = 1.0f / textureSize(sTexture, 0);\n"
+            "vec3 result = texture(sTexture, fTexCoord).rgb * weight[0];\n"
+            "if(horizontal)\n"
+            "{\n"
+                "for(int i = 1; i < 5; i++)\n"
+                "{\n"
+                    "result += texture(sTexture, fTexCoord + vec2(tex_offset.x * i, 0.0f)).rgb * weight[i];\n"
+                    "result += texture(sTexture, fTexCoord - vec2(tex_offset.x * i, 0.0f)).rgb * weight[i];\n"
+                "}\n"
+            "} else\n"
+            "{\n"
+                "for(int i = 1; i < 5; i++)\n"
+                "{\n"
+                    "result += texture(sTexture, fTexCoord + vec2( 0.0f, tex_offset.y * i)).rgb * weight[i];\n"
+                    "result += texture(sTexture, fTexCoord - vec2( 0.0f, tex_offset.y * i)).rgb * weight[i];\n"
+                "}\n"
+            "}\n"
+            "color = vec4(result, 1.0f);\n"
+        "}\0";
+    unsigned int blendShaderProgram;
+    const char* blendVertexShaderSrc = 
+        "#version 330 core\n" 
+        "layout (location = 0) in vec2 point;\n"
+        "layout (location = 1) in vec2 texCoord;\n"
+        "out vec2 fTexCoord;\n"
+        "void main(){\n"
+            "fTexCoord = texCoord;\n"
+            "gl_Position = vec4(point.x, point.y, 0.0f, 1.0f);\n"
+        "}\0"; // TODO: Load from file 
+    const char* blendFragmentShaderSrc = 
+        "#version 330 core\n"
+        "in vec2 fTexCoord;\n"
+        "uniform sampler2D sTexture1;\n"
+        "uniform sampler2D sTexture2;\n"
+        "out vec4 color;\n"
+        "void main(){\n"
+            "const float gamma = 2.2;\n"
+            "vec3 normal = texture(sTexture1, fTexCoord).rgb;\n"
+            "vec3 blur = texture(sTexture2, fTexCoord).rgb;\n"
+            "color = vec4(normal + blur, 1.0f);\n"
+            // "color = pow(color, vec3(1.0 / gamma));\n"
         "}\0";
     float quadVertex[24] = {
         -1.0f,  1.0f,  0.0f, 1.0f,
@@ -208,23 +292,60 @@ class Waveform2 {
             glGenVertexArrays(1, &vao);
             glBindVertexArray(vao);
             
-            glGenFramebuffers(1, &fbo);
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            
-            glGenTextures(1, &texture);
-            glBindTexture(GL_TEXTURE_2D, texture);
+            fbo = new unsigned int[3];
+            glGenFramebuffers(3, fbo);
+            texture = new unsigned int[3];
+            glGenTextures(3, texture);
+
+            // NORMAL
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
+            glBindTexture(GL_TEXTURE_2D, texture[0]);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glBindTexture(GL_TEXTURE_2D, 0);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[0], 0);
+
+            if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+                std::cout << "Failed to setup framebuffer 0" << std::endl;
+            }
+
+            // BRIGHT and final burred target
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
+            
+            glBindTexture(GL_TEXTURE_2D, texture[1]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[1], 0);
             
             if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
-                std::cout << "Failed to setup framebuffer" << std::endl;
+                std::cout << "Failed to setup framebuffer 1" << std::endl;
+            }
+
+            // Temp FBO
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
+
+            glBindTexture(GL_TEXTURE_2D, texture[2]);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[2], 0);
+            
+            if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
+                std::cout << "Failed to setup temp framebuffer 3" << std::endl;
             }
 
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glBindTexture(GL_TEXTURE_2D, 0);
 
             glGenBuffers(1, &quadVBO);
             glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
@@ -232,10 +353,10 @@ class Waveform2 {
 
             glGenBuffers(1, &vbo);
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
-            glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
+            // glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
 
-            glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
-            glEnableVertexAttribArray(0);
+            // glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
+            // glEnableVertexAttribArray(0);
 
             int success;
             char message[1000];
@@ -272,7 +393,7 @@ class Waveform2 {
             glDeleteShader(fragmentShader);
 
             unsigned int screenVertexShader = glCreateShader(GL_VERTEX_SHADER);
-            glShaderSource(screenVertexShader, 1, &screenVertexShaderSrc, NULL);
+            glShaderSource(screenVertexShader, 1, &extractBrightVertexShaderSrc, NULL);
             glCompileShader(screenVertexShader);
             glGetShaderiv(screenVertexShader, GL_COMPILE_STATUS, &success);
             if(!success){
@@ -281,7 +402,7 @@ class Waveform2 {
             }
 
             unsigned int screenFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-            glShaderSource(screenFragmentShader, 1, &screenFragmentShaderSrc, NULL);
+            glShaderSource(screenFragmentShader, 1, &extractBrightFragmentShaderSrc, NULL);
             glCompileShader(screenFragmentShader);
             glGetShaderiv(screenFragmentShader, GL_COMPILE_STATUS, &success);
             if(!success){
@@ -289,21 +410,102 @@ class Waveform2 {
                 std::cout << "Failed to compile screen Vertex Shader: " << message << std::endl;
             }
 
-            screenShaderProgram = glCreateProgram();
-            glAttachShader(screenShaderProgram, screenVertexShader);
-            glAttachShader(screenShaderProgram, screenFragmentShader);
-            glLinkProgram(screenShaderProgram);
-            glGetProgramiv(screenShaderProgram, GL_LINK_STATUS, &success);
+            extractBrightShaderProgram = glCreateProgram();
+            glAttachShader(extractBrightShaderProgram, screenVertexShader);
+            glAttachShader(extractBrightShaderProgram, screenFragmentShader);
+            glLinkProgram(extractBrightShaderProgram);
+            glGetProgramiv(extractBrightShaderProgram, GL_LINK_STATUS, &success);
             if(!success){
-                glGetProgramInfoLog(screenShaderProgram, 1000, NULL, message);
+                glGetProgramInfoLog(extractBrightShaderProgram, 1000, NULL, message);
                 std::cout << "Failed to Link the screen shader program: " << message << std::endl;
+            }
+
+            unsigned int copyTextureVertexShader = glCreateShader(GL_VERTEX_SHADER);
+            glShaderSource(copyTextureVertexShader, 1, &copyTextureVertexShaderSrc, NULL);
+            glCompileShader(copyTextureVertexShader);
+            glGetShaderiv(copyTextureVertexShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(copyTextureVertexShader, 1000, NULL, message);
+                std::cout << "Failed to compile Copy Texture Vertex Shader: " << message << std::endl;
+            }
+
+            unsigned int copyTextureFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(copyTextureFragmentShader, 1, &copyTextureFragmentShaderSrc, NULL);
+            glCompileShader(copyTextureFragmentShader);
+            glGetShaderiv(copyTextureFragmentShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(copyTextureFragmentShader, 1000, NULL, message);
+                std::cout << "Failed to compile copy texture fragment Shader: " << message << std::endl;
+            }
+
+            copyShaderProgram = glCreateProgram();
+            glAttachShader(copyShaderProgram, copyTextureVertexShader);
+            glAttachShader(copyShaderProgram, copyTextureFragmentShader);
+            glLinkProgram(copyShaderProgram);
+            glGetProgramiv(copyShaderProgram, GL_LINK_STATUS, &success);
+            if(!success){
+                glGetProgramInfoLog(copyShaderProgram, 1000, NULL, message);
+                std::cout << "Failed to Link the copy shader program: " << message << std::endl;
+            }
+
+            unsigned int blurVertexShader = glCreateShader(GL_VERTEX_SHADER);
+            glShaderSource(blurVertexShader, 1, &blurVertexShaderSrc, NULL);
+            glCompileShader(blurVertexShader);
+            glGetShaderiv(blurVertexShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(blurVertexShader, 1000, NULL, message);
+                std::cout << "Failed to compile blur Texture Vertex Shader: " << message << std::endl;
+            }
+
+            unsigned int blurFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(blurFragmentShader, 1, &blurFragmentShaderSrc, NULL);
+            glCompileShader(blurFragmentShader);
+            glGetShaderiv(blurFragmentShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(blurFragmentShader, 1000, NULL, message);
+                std::cout << "Failed to compile blur texture fragment Shader: " << message << std::endl;
+            }
+
+            blurShaderProgram = glCreateProgram();
+            glAttachShader(blurShaderProgram, blurVertexShader);
+            glAttachShader(blurShaderProgram, blurFragmentShader);
+            glLinkProgram(blurShaderProgram);
+            glGetProgramiv(blurShaderProgram, GL_LINK_STATUS, &success);
+            if(!success){
+                glGetProgramInfoLog(blurShaderProgram, 1000, NULL, message);
+                std::cout << "Failed to Link the blur shader program: " << message << std::endl;
+            }
+
+            unsigned int blendVertexShader = glCreateShader(GL_VERTEX_SHADER);
+            glShaderSource(blendVertexShader, 1, &blendVertexShaderSrc, NULL);
+            glCompileShader(blendVertexShader);
+            glGetShaderiv(blendVertexShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(blendVertexShader, 1000, NULL, message);
+                std::cout << "Failed to compile blur Texture Vertex Shader: " << message << std::endl;
+            }
+
+            unsigned int blendFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(blendFragmentShader, 1, &blendFragmentShaderSrc, NULL);
+            glCompileShader(blendFragmentShader);
+            glGetShaderiv(blendFragmentShader, GL_COMPILE_STATUS, &success);
+            if(!success){
+                glGetShaderInfoLog(blendFragmentShader, 1000, NULL, message);
+                std::cout << "Failed to compile blur texture fragment Shader: " << message << std::endl;
+            }
+
+            blendShaderProgram = glCreateProgram();
+            glAttachShader(blendShaderProgram, blendVertexShader);
+            glAttachShader(blendShaderProgram, blendFragmentShader);
+            glLinkProgram(blendShaderProgram);
+            glGetProgramiv(blendShaderProgram, GL_LINK_STATUS, &success);
+            if(!success){
+                glGetProgramInfoLog(blendShaderProgram, 1000, NULL, message);
+                std::cout << "Failed to Link the blur shader program: " << message << std::endl;
             }
         }
 
         void draw(int currentMillisecond){
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            glClearColor(0.1, 0.1, 0.1f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
             for(int i = 0; i < frameSize; i++){
                 frame[i][0] = audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
                 frame[i][1] = 0;
@@ -340,21 +542,23 @@ class Waveform2 {
                 j++;
             }
 
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
+            glClearColor(0.1f, 0.0, 0.0, 0.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
             // glBindVertexArray(vao);
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
             glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
             glUseProgram(shaderProgram);
-            glPointSize(3.0f); // TODO: Circle feature
+            glPointSize(2.0f); // TODO: Circle feature
             glDrawArrays(GL_POINTS, 0, size);
-            
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glClearColor(1.0f, 0.0f, 0.0f, 1.0f); 
-            glClear(GL_COLOR_BUFFER_BIT);
 
-            glUseProgram(screenShaderProgram);
-            glBindTexture(GL_TEXTURE_2D, texture);
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
+            glClearColor(0.0f, 0.0, 0.0, 0.0f); 
+            glClear(GL_COLOR_BUFFER_BIT);
+            glUseProgram(extractBrightShaderProgram);
+            glBindTexture(GL_TEXTURE_2D, texture[0]);
             // glBindVertexArray(vao);
             glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
             glEnableVertexAttribArray(0);
@@ -362,13 +566,79 @@ class Waveform2 {
             glEnableVertexAttribArray(1);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
             glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            for(int i = 0; i < 10; i++){
+                // horizontal blur
+                glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
+                glClearColor(0.0f, 0.0, 0.0, 0.0f); 
+                glClear(GL_COLOR_BUFFER_BIT);
+                glUseProgram(blurShaderProgram);
+                glUniform1i(glGetUniformLocation(blurShaderProgram, "horizontal"), 1);
+                glBindTexture(GL_TEXTURE_2D, texture[1]);
+                glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+
+                // vertical blur
+                glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
+                glClearColor(0.0f, 0.0, 0.0, 0.0f); 
+                glClear(GL_COLOR_BUFFER_BIT);
+                glUseProgram(blurShaderProgram);
+                glUniform1i(glGetUniformLocation(blurShaderProgram, "horizontal"), 0);
+                glBindTexture(GL_TEXTURE_2D, texture[2]);
+                glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
+
+            // horizontal blur
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
+            glClearColor(0.1f, 0.0, 0.0, 0.0f); 
+            glClear(GL_COLOR_BUFFER_BIT);
+            glUseProgram(blurShaderProgram);
+            glUniform1i(glGetUniformLocation(blurShaderProgram, "horizontal"), 1);
+            glBindTexture(GL_TEXTURE_2D, texture[1]);
+            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f); 
+            glClear(GL_COLOR_BUFFER_BIT);
+            glUseProgram(blendShaderProgram);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texture[0]);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, texture[1]);
+            glBindVertexArray(vao);
+            glUniform1i(glGetUniformLocation(blendShaderProgram, "sTexture1"), 0);
+            glUniform1i(glGetUniformLocation(blendShaderProgram, "sTexture2"), 1);
+            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            
         }
 
         ~Waveform2(){
             delete frame;
             delete frequencyBands;
             delete frameData;
-            glDeleteFramebuffers(1, &fbo);
+            glDeleteFramebuffers(2, fbo);
+            delete fbo;
+            glDeleteTextures(2, texture);
+            delete texture;
             fftw_destroy_plan(plan);
             fftw_cleanup();
 
@@ -552,136 +822,6 @@ class Waveform3 {
             for(int i = 0; i < 0; i++){
                 delete frameData[i]; // TODO: Check this
             }
-            delete frameData;
-            fftw_destroy_plan(plan);
-            fftw_cleanup();
-        }
-};
-
-class Waveform4 {
-    std::vector<std::vector<double>> audioSignal;
-    int frameSize;
-    fftw_complex *frame, *frequencyBands; 
-    fftw_plan plan;
-    int startIndex;
-    int size;
-    double *frameData; // TODO: Careful when merge
-    int sampleRate;
-    unsigned int frameDataSize; // TODO: Careful when merge
-    unsigned int numVertices;
-    unsigned int offset = 0;
-    unsigned int vao;
-    unsigned int vbo;
-    unsigned int shaderProgram;
-    const char* vertexShaderSrc = 
-        "#version 330 core\n" 
-        "layout (location = 0) in vec3 point;\n"
-        "uniform mat4 view;\n"
-        "void main(){\n"
-            "gl_Position = vec4(point.x, point.y, point.z, 1.0);\n"
-        "}\0"; // TODO: Load from file 
-    const char* fragmentShaderSrc = 
-        "#version 330 core\n"
-        "out vec4 color;\n"
-        "void main(){\n"
-            "color = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n"
-        "}\0";
-    public:
-        Waveform4(std::vector<std::vector<double>> audioSignal, int sampleRate){
-            this->audioSignal = audioSignal;
-            this->sampleRate = sampleRate;
-            frameSize = 1024 * 2;
-            frame = new fftw_complex[frameSize];
-            frequencyBands = new fftw_complex[frameSize];
-            plan = fftw_plan_dft_1d(frameSize, frame, frequencyBands, FFTW_FORWARD,  FFTW_MEASURE);   
-            startIndex = (20.0f * frameSize) / sampleRate ;
-            size = ((20000.0f * frameSize)/sampleRate) - startIndex;
-            std::cout << "size" << size << std::endl;
-
-            numVertices = size * 3;
-            frameDataSize = numVertices * sizeof(double);
-            frameData = new double[numVertices]; 
-            for(int i = 0; i < numVertices; i+=3){
-                frameData[i] = ((double)i/3)/size - 0.5f;
-                frameData[i+1] = 0.0f;
-                frameData[i+2] = 0.0f;
-            }
-            
-            glGenVertexArrays(1, &vao);
-            glBindVertexArray(vao);
-            
-            glGenBuffers(1, &vbo);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo);
-            glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
-
-            glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
-            glEnableVertexAttribArray(0);
-
-            int success;
-            char message[1000];
-
-            unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-            glShaderSource(vertexShader, 1, &vertexShaderSrc, NULL);
-            glCompileShader(vertexShader);
-            glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-            if(!success){
-                glGetShaderInfoLog(vertexShader, 1000, NULL, message);
-                std::cout << "Failed to compile Vertex Shader: " << message << std::endl;
-            }
-
-            unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-            glShaderSource(fragmentShader, 1, &fragmentShaderSrc, NULL);
-            glCompileShader(fragmentShader);
-            glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-            if(!success){
-                glGetShaderInfoLog(fragmentShader, 1000, NULL, message);
-                std::cout << "Failed to compile Fragment Shader: " << message << std::endl;
-            }
-
-            shaderProgram = glCreateProgram();
-            glAttachShader(shaderProgram, vertexShader);
-            glAttachShader(shaderProgram, fragmentShader);
-            glLinkProgram(shaderProgram);
-            glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-            if(!success){
-                glGetProgramInfoLog(shaderProgram, 1000, NULL, message);
-                std::cout << "Failed to link shaders: " << message << std::endl;
-            }
-
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragmentShader);
-
-            glm::mat4 view = glm::mat4(1.0f);
-            // std::cout << glm::to_string(view) << std::endl;
-            // view = glm::translate(view, glm::vec3(0.0f, 0.0f, 0.0f));
-            int viewUniformLoc = glGetUniformLocation(shaderProgram, "view");
-            glUniformMatrix4fv(viewUniformLoc, 1, GL_FALSE, glm::value_ptr(view));
-        }
-
-        void draw(int currentMillisecond){
-            for(int i = 0; i < frameSize; i++){
-                frame[i][0] = audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
-                frame[i][1] = 0;
-            }
-            fftw_execute(plan);
-            int j = startIndex;
-            for(int i = 0; i < numVertices; i+=3){ // TODO: Handle out of bound
-                double real = frequencyBands[j][0];
-                double complex = frequencyBands[j][1];
-                frameData[i+1] =  sqrt(real * real + complex * complex) / (frameSize/8); 
-                j++;
-            }
-
-            glBindBuffer(GL_ARRAY_BUFFER, vao);
-            glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
-            glUseProgram(shaderProgram);
-            glBindVertexArray(vao);
-            glDrawArrays(GL_LINE_STRIP, 0, size);
-        }
-
-        ~Waveform4(){
-            delete frame;
-            delete frequencyBands;
             delete frameData;
             fftw_destroy_plan(plan);
             fftw_cleanup();
