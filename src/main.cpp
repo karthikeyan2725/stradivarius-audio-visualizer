@@ -14,108 +14,73 @@
 #include <math.h>
 
 #include <Shader.h> // Move to wfclass
+#include <CircularWaveform.h>
+#include <PcmWaveform.h>
+#include <TerrainWaveform.h>
+#include <Bloom.h>
 
 #define APPNAME "Stradivarius"
-#define ONE_SECOND 1000
-#define FPS 120
 
 void resize_frame_buffer_on_window(GLFWwindow* window, int width, int height){
     glViewport(0, 0, width, height); // TODO: handle resize properly
 }
 
-class Waveform1 {
+class Scene1 {
     std::vector<std::vector<double>> audioSignal;
     int sampleRate;
-    float *vertexData;
+
     int frameSize;
-    unsigned int vertexDataSize;
     unsigned int numVertices;
-    unsigned int offset = 0;
-    unsigned int vao;
-    unsigned int vbo;
-    Shader *pcmShader; // TODO : Remove init
+    float *vertexData;
+
+    PcmWaveform *pcmWaveform;
 public:
-    Waveform1(std::vector<std::vector<double>> audioSignal, int sampleRate){
+    Scene1(std::vector<std::vector<double>> audioSignal, int sampleRate){
         this->audioSignal = audioSignal;
         this->sampleRate = sampleRate;
+
         frameSize = sampleRate * 10;
         numVertices = frameSize * 3;
-        vertexDataSize = numVertices * sizeof(float);
-        vertexData = new float[numVertices]; // TODO: Make Double
+        vertexData = new float[numVertices]; 
         for(int i = 0; i < numVertices; i+=3){
             vertexData[i] = ((float)i/3)/frameSize - 0.5f;
             vertexData[i+1] = 0.0f;
             vertexData[i+2] = 0.0f;
         }
 
-        glGenVertexArrays(1, &vao);
-        glBindVertexArray(vao);
-        
-        glGenBuffers(1, &vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, vertexDataSize, vertexData, GL_DYNAMIC_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-
-        pcmShader = new Shader("./src/shaders/pcm.vs", "./src/shaders/pcm.fs");
+        pcmWaveform = new PcmWaveform(numVertices, "./src/shaders/pcm.vs", "./src/shaders/pcm.fs");
     }
 
     void draw(int currentMillisecond){
         for(int i = 0; i < numVertices; i+=3){
             vertexData[i+1] = audioSignal[0][(int)(i/3.0f) + (currentMillisecond/1000.0f) * sampleRate] / 2;
         }
-        offset++;
-
-        glBindVertexArray(vao);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, vertexDataSize, vertexData, GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);      
-        // glUseProgram(shaderProgram);
-        pcmShader->use();
-        glDrawArrays(GL_LINE_STRIP, 0, frameSize);
+        pcmWaveform->draw(vertexData);
     }
 
-    ~Waveform1(){
-        delete pcmShader;
+    ~Scene1(){
         delete vertexData;
+        delete pcmWaveform;
     }
 };
 
-class Waveform2 {
+class Scene2 {
     std::vector<std::vector<double>> audioSignal;
+    int sampleRate;
+
+    // FFT
     int frameSize;
     fftw_complex *frame, *frequencyBands; 
     fftw_plan plan;
     int startIndex;
     int size;
-    double *frameData; // TODO: Careful when merge
-    int sampleRate;
-    unsigned int frameDataSize; // TODO: Careful when merge
-    unsigned int numVertices;
-    unsigned int offset = 0;
-    unsigned int vao;
-    unsigned int vbo;
-    unsigned int *fbo;
-    unsigned int *texture;
-    Shader *circularSpectrumShader;
-    Shader *brightShader;
-    Shader *copyShader;
-    Shader *blurShader;
-    Shader *blendShader;
-    float quadVertex[24] = {
-        -1.0f,  1.0f,  0.0f, 1.0f,
-        -1.0f, -1.0f,  0.0f, 0.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
+    float *frameData; // TODO: Careful when merge
 
-        -1.0f,  1.0f,  0.0f, 1.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
-         1.0f,  1.0f,  1.0f, 1.0f
-    };
-    unsigned int quadVBO;
+    unsigned int numVertices;
+    CircularWaveform *circularWaveform;
+    Bloom *bloom;
     public:
-        Waveform2(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
+        Scene2(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
             this->audioSignal = audioSignal;
             this->sampleRate = sampleRate;
             frameSize = 1024 / 2;
@@ -125,90 +90,17 @@ class Waveform2 {
             startIndex = (20.0f * frameSize) / sampleRate ;
             size = ((20000.0f * frameSize)/sampleRate) - startIndex;
             size /= 2; // TODO: Not properly sizing between 20-20kHz
-            std::cout << "size" << size << std::endl;
 
             numVertices = size * 3;
-            frameDataSize = numVertices * sizeof(double);
-            frameData = new double[numVertices]; 
+            frameData = new float[numVertices]; 
             for(int i = 0; i < numVertices; i+=3){
                 frameData[i] = ((double)i/3)/size; // TODO: Remove if not using circle - 0.5f;
                 frameData[i+1] = 0.0f;
                 frameData[i+2] = 0.0f;
             }
             
-            glGenVertexArrays(1, &vao);
-            glBindVertexArray(vao);
-            
-            fbo = new unsigned int[3];
-            glGenFramebuffers(3, fbo);
-            texture = new unsigned int[3];
-            glGenTextures(3, texture);
-
-            // NORMAL
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
-            glBindTexture(GL_TEXTURE_2D, texture[0]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[0], 0);
-
-            if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
-                std::cout << "Failed to setup framebuffer 0" << std::endl;
-            }
-
-            // BRIGHT and final burred target
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
-            
-            glBindTexture(GL_TEXTURE_2D, texture[1]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[1], 0);
-            
-            if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
-                std::cout << "Failed to setup framebuffer 1" << std::endl;
-            }
-
-            // Temp FBO
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
-
-            glBindTexture(GL_TEXTURE_2D, texture[2]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[2], 0);
-            
-            if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE){
-                std::cout << "Failed to setup temp framebuffer 3" << std::endl;
-            }
-
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glBindTexture(GL_TEXTURE_2D, 0);
-
-            glGenBuffers(1, &quadVBO);
-            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertex), quadVertex, GL_STATIC_DRAW);
-
-            glGenBuffers(1, &vbo);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-            int success;
-            char message[1000];
-
-            circularSpectrumShader = new Shader("src/shaders/circular_spectrum.vs", "src/shaders/circular_spectrum.fs");
-            brightShader = new Shader("src/shaders/extract_bright.vs", "src/shaders/extract_bright.fs");
-            copyShader = new Shader("src/shaders/copy.vs", "src/shaders/copy.fs");
-            blurShader = new Shader("src/shaders/blur.vs", "src/shaders/blur.fs");
-            blendShader = new Shader("src/shaders/blend.vs", "src/shaders/blend.fs");
+            circularWaveform = new CircularWaveform(numVertices, "src/shaders/circular_spectrum.vs", "src/shaders/circular_spectrum.fs");
+            bloom = new Bloom(width, height);
         }
 
         void draw(int currentMillisecond){
@@ -246,124 +138,44 @@ class Waveform2 {
                 j++;
             }
 
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
-            glClearColor(0.1f, 0.0, 0.0, 0.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo);
-            glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData, GL_STATIC_DRAW);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
-            circularSpectrumShader->use();
-            glPointSize(2.0f); 
-            glDrawArrays(GL_POINTS, 0, size);
+            bloom->start();
 
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
-            glClearColor(0.0f, 0.0, 0.0, 0.0f); 
-            glClear(GL_COLOR_BUFFER_BIT);
-            brightShader->use();
-            glBindTexture(GL_TEXTURE_2D, texture[0]);
-            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
-            glDrawArrays(GL_TRIANGLES, 0, 6);
+            circularWaveform->draw(frameData);
 
-            blurShader->use();
-            for(int i = 0; i < 10; i++){
-                // horizontal blur
-                glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
-                glClearColor(0.0f, 0.0, 0.0, 0.0f); 
-                glClear(GL_COLOR_BUFFER_BIT);
-                blurShader->setUniform1i("horizontal", 1);
-                glBindTexture(GL_TEXTURE_2D, texture[1]);
-                glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
-                glDrawArrays(GL_TRIANGLES, 0, 6);
-
-                // vertical blur
-                glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
-                glClearColor(0.0f, 0.0, 0.0, 0.0f); 
-                glClear(GL_COLOR_BUFFER_BIT);
-                blurShader->setUniform1i("horizontal", 0);
-                glBindTexture(GL_TEXTURE_2D, texture[2]);
-                glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
-                glDrawArrays(GL_TRIANGLES, 0, 6);
-            }
-
-            // horizontal blur
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
-            glClearColor(0.1f, 0.0, 0.0, 0.0f); 
-            blurShader->use();
-            blurShader->setUniform1i("horizontal", 1);
-            glBindTexture(GL_TEXTURE_2D, texture[1]);
-            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glClearColor(0.1f, 0.1f, 0.1f, 1.0f); 
-            glClear(GL_COLOR_BUFFER_BIT);
-            blendShader->use();
-            blendShader->setUniform1i("sTexture1", 0);
-            blendShader->setUniform1i("sTexture2", 1);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture[0]);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, texture[1]);
-            glBindVertexArray(vao);
-            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-            
+            bloom->end();
         }
 
-        ~Waveform2(){
+        ~Scene2(){
             delete frame;
             delete frequencyBands;
             delete frameData;
-            glDeleteFramebuffers(2, fbo);
-            delete fbo;
-            glDeleteTextures(2, texture);
-            delete texture;
-            delete brightShader;
+            // glDeleteFramebuffers(2, fbo);
+            // delete fbo;
+            // glDeleteTextures(2, texture);
+            // delete texture;
+            // delete brightShader;
+            delete circularWaveform;
             fftw_destroy_plan(plan);
             fftw_cleanup();
-
         }
 };
 
-class Waveform3 {
+class Scene3 {
     std::vector<std::vector<double>> audioSignal;
     int frameSize;
     fftw_complex *frame, *frequencyBands; 
     fftw_plan plan;
     int startIndex;
     int size;
-    double **frameData; // TODO: Careful when merge
+    float **frameData; // TODO: Careful when merge
     int sampleRate;
     unsigned int frameDataSize; // TODO: Careful when merge
     int num;
     unsigned int numVertices;
-    unsigned int offset = 0;
-    unsigned int vao;
-    unsigned int *vbo;
-    Shader *terrainSpectrumShader;
+    TerrainWaveform *terrainWaveform;
+    Bloom *bloom;
     public:
-        Waveform3(std::vector<std::vector<double>> audioSignal, int sampleRate){
+        Scene3(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
             this->audioSignal = audioSignal;
             this->sampleRate = sampleRate;
             frameSize = 256;
@@ -372,14 +184,13 @@ class Waveform3 {
             plan = fftw_plan_dft_1d(frameSize, frame, frequencyBands, FFTW_FORWARD,  FFTW_MEASURE);   
             startIndex = (20.0f * frameSize) / sampleRate ;
             size = ((20000.0f * frameSize)/sampleRate) - startIndex;
-            std::cout << "size" << size << std::endl;
 
             numVertices = size * 3;
             frameDataSize = numVertices * sizeof(double);
             num = 30;
-            frameData = new double*[num]; 
+            frameData = new float*[num]; 
             for(int i = 0; i < num; i++){
-                frameData[i] = new double[numVertices];
+                frameData[i] = new float[numVertices];
             }
 
             for(int j = 0;j < num; j++){
@@ -390,23 +201,13 @@ class Waveform3 {
                 }
             }
             
-            vbo = new unsigned int[num];
-            glGenBuffers(num, vbo);
-
-            terrainSpectrumShader = new Shader("src/shaders/terrain_spectrum.vs", "src/shaders/terrain_spectrum.fs");
-            glm::mat4 view = glm::mat4(1.0f); 
-            float scaleBy = 2.0f;
-            view = glm::scale(view, glm::vec3(scaleBy));
-            view = glm::rotate(view, 30.0f * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
-            view = glm::rotate(view, -140.0f * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
-            view = glm::translate(view, glm::vec3(-0.0f, 0.0f, 0.0f));
-            terrainSpectrumShader->use();
-            terrainSpectrumShader->setUniformMatrix4fv("view", view);
+            terrainWaveform = new TerrainWaveform(numVertices, num, "src/shaders/terrain_spectrum.vs", "src/shaders/terrain_spectrum.fs");
+            bloom = new Bloom(width, height);   
         }
 
         void draw(int currentMillisecond, bool swap){
 
-            double *f = frameData[num-1];
+            float *f = frameData[num-1];
             for(int i = num-1; i > 0; i--){
                 frameData[i] = frameData[i-1];
             }
@@ -437,27 +238,21 @@ class Waveform3 {
                 j++;
             }
 
-            glEnable(GL_BLEND); 
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
-            for(int i = 0; i < num; i++){
-                glBindBuffer(GL_ARRAY_BUFFER, vbo[i]); // TODO: Update all
-                glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 3 * sizeof(double), (void*)0);
-                glEnableVertexAttribArray(0);
-                terrainSpectrumShader->use();
-                terrainSpectrumShader->setUniform1i("offset", i);
-                glBufferData(GL_ARRAY_BUFFER, frameDataSize, frameData[i], GL_DYNAMIC_DRAW);
-                glPointSize(1.0f);
-                glDrawArrays(GL_POINTS, 0, size);
-            }
+            bloom->start();
+
+            terrainWaveform->draw(frameData);
+
+            bloom->end();
         }
 
-        ~Waveform3(){
+        ~Scene3(){ // TODO: Check if all destroyed
             delete frame;
             delete frequencyBands;
             for(int i = 0; i < 0; i++){
-                delete frameData[i]; // TODO: Check this
+                delete[] frameData[i]; 
             }
-            delete frameData;
+            delete[] frameData;
+            delete terrainWaveform;
             fftw_destroy_plan(plan);
             fftw_cleanup();
         }
@@ -494,7 +289,7 @@ int main(){
 
     glfwSetFramebufferSizeCallback(window, resize_frame_buffer_on_window);
 
-    const char* songPath = "audio/escape.wav";
+    const char* songPath = "audio/hoc.wav";
     
     ma_result result;
     ma_engine engine;
@@ -518,11 +313,15 @@ int main(){
     audioFile.printSummary();
     int sampleRate = audioFile.getSampleRate();
 
-    Waveform1 waveform1(audioFile.samples, sampleRate);
-    Waveform2 waveform2(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
-    Waveform3 waveform3(audioFile.samples, sampleRate);
+    Scene1 waveform1(audioFile.samples, sampleRate);
+    Scene2 waveform2(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
+    Scene3 waveform3(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
 
     int choice = 1;
+
+    unsigned int vao;
+    glGenVertexArrays(1, &vao); // TODO: Move to each waveforms
+    glBindVertexArray(vao);
     
     while(!glfwWindowShouldClose(window)){
         glClear(GL_COLOR_BUFFER_BIT);
