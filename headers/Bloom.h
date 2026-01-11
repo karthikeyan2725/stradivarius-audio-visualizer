@@ -20,9 +20,9 @@ class Bloom{
          1.0f,  1.0f,  1.0f, 1.0f
     };
     unsigned int quadVBO;
-    
 public:
     Bloom(int width, int height){
+
         fbo = new unsigned int[3];
         glGenFramebuffers(3, fbo);
         texture = new unsigned int[3];
@@ -166,5 +166,22 @@ public:
             glEnableVertexAttribArray(1);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
             glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
+    void updateSize(int width, int height){
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
+        glBindTexture(GL_TEXTURE_2D, texture[0]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
+        glBindTexture(GL_TEXTURE_2D, texture[1]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
+        glBindTexture(GL_TEXTURE_2D, texture[2]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 };

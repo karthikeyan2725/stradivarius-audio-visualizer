@@ -31,17 +31,16 @@ public:
         applyHannWindow(input);
 
         fftw_execute(plan);
-
+        
         int output_index = getIndex(startFrequency, sampleRate);
         int clippedSize = getClippedSize(startFrequency, endFrequency, sampleRate);
         for(int i = 0; i < clippedSize; i++){
             target[i] = magnitude(output[output_index+i]);
-            if(target[i] > 0.2f) target[i] = 0.2f;
         }
     }
 
     float magnitude(const fftw_complex u){
-        return sqrt(u[REAL] * u[REAL] + u[COMPLEX] * u[COMPLEX])  / (size/4);
+        return sqrt(u[REAL] * u[REAL] + u[COMPLEX] * u[COMPLEX]);
     }
 
     void applyHannWindow(fftw_complex *input){
