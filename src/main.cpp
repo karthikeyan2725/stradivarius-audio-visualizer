@@ -13,11 +13,12 @@
 #include <vector>
 #include <math.h>
 
-#include <Shader.h> // Move to wfclass
 #include <CircularWaveform.h>
 #include <PcmWaveform.h>
 #include <TerrainWaveform.h>
 #include <Bloom.h>
+
+#include <AudioFFT.h>
 
 #define APPNAME "Stradivarius"
 
@@ -48,7 +49,7 @@ public:
             vertexData[i+2] = 0.0f;
         }
 
-        pcmWaveform = new PcmWaveform(numVertices, "./src/shaders/pcm.vs", "./src/shaders/pcm.fs");
+        pcmWaveform = new PcmWaveform(frameSize, "./src/shaders/pcm.vs", "./src/shaders/pcm.fs");
     }
 
     void draw(int currentMillisecond){
@@ -87,7 +88,7 @@ class Scene2 {
             frame = new fftw_complex[frameSize];
             frequencyBands = new fftw_complex[frameSize];
             plan = fftw_plan_dft_1d(frameSize, frame, frequencyBands, FFTW_FORWARD,  FFTW_MEASURE);   
-            startIndex = (20.0f * frameSize) / sampleRate ;
+            startIndex = (20.0f * frameSize) / sampleRate;
             size = ((20000.0f * frameSize)/sampleRate) - startIndex;
             size /= 2; // TODO: Not properly sizing between 20-20kHz
 
@@ -99,7 +100,7 @@ class Scene2 {
                 frameData[i+2] = 0.0f;
             }
             
-            circularWaveform = new CircularWaveform(numVertices, "src/shaders/circular_spectrum.vs", "src/shaders/circular_spectrum.fs");
+            circularWaveform = new CircularWaveform(size, "src/shaders/circular_spectrum.vs", "src/shaders/circular_spectrum.fs");
             bloom = new Bloom(width, height);
         }
 
@@ -120,7 +121,7 @@ class Scene2 {
             fftw_execute(plan);
             int j = startIndex;
           
-            int nObs = 10;
+            int nObs = 0;
             for(int i = 0; i < numVertices; i+=3){ // TODO: Handle out of bound
                 double real = frequencyBands[j][0];
                 double complex = frequencyBands[j][1];
@@ -162,100 +163,77 @@ class Scene2 {
 
 class Scene3 {
     std::vector<std::vector<double>> audioSignal;
-    int frameSize;
-    fftw_complex *frame, *frequencyBands; 
-    fftw_plan plan;
-    int startIndex;
-    int size;
-    float **frameData; // TODO: Careful when merge
     int sampleRate;
-    unsigned int frameDataSize; // TODO: Careful when merge
-    int num;
-    unsigned int numVertices;
+    int frameSize;
+    int clippedSize;
+    float **frameData; // TODO: Careful when merge
+    int numRows;
     TerrainWaveform *terrainWaveform;
     Bloom *bloom;
-    public:
-        Scene3(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
-            this->audioSignal = audioSignal;
-            this->sampleRate = sampleRate;
-            frameSize = 256;
-            frame = new fftw_complex[frameSize];
-            frequencyBands = new fftw_complex[frameSize];
-            plan = fftw_plan_dft_1d(frameSize, frame, frequencyBands, FFTW_FORWARD,  FFTW_MEASURE);   
-            startIndex = (20.0f * frameSize) / sampleRate ;
-            size = ((20000.0f * frameSize)/sampleRate) - startIndex;
+    AudioFFT *audioFFT; 
+public:
+    Scene3(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
+        this->audioSignal = audioSignal;
+        this->sampleRate = sampleRate;
+        frameSize = 256;
+        audioFFT = new AudioFFT(frameSize);
+        clippedSize = audioFFT->getClippedSize(20, 20000, sampleRate);
+        int numVertices = 3 * clippedSize;
+        numRows = 30;
 
-            numVertices = size * 3;
-            frameDataSize = numVertices * sizeof(double);
-            num = 30;
-            frameData = new float*[num]; 
-            for(int i = 0; i < num; i++){
-                frameData[i] = new float[numVertices];
-            }
-
-            for(int j = 0;j < num; j++){
-                for(int i = 0; i < numVertices; i+=3){
-                    frameData[j][i] = ((double)i/3)/size - 0.5f;
-                    frameData[j][i+1] = 0.0f;
-                    frameData[j][i+2] = 0.1f * j;
-                }
-            }
-            
-            terrainWaveform = new TerrainWaveform(numVertices, num, "src/shaders/terrain_spectrum.vs", "src/shaders/terrain_spectrum.fs");
-            bloom = new Bloom(width, height);   
+        frameData = new float*[numRows]; 
+        for(int row = 0; row < numRows; row++){
+            frameData[row] = new float[numVertices];
         }
 
-        void draw(int currentMillisecond, bool swap){
-
-            float *f = frameData[num-1];
-            for(int i = num-1; i > 0; i--){
-                frameData[i] = frameData[i-1];
+        for(int row = 0; row < numRows; row++){
+            for(int i = 0; i < numVertices; i+=3){
+                frameData[row][i] = ((double)i/3)/clippedSize - 0.5f;
+                frameData[row][i+1] = 0.0f;
+                frameData[row][i+2] = 0.1f * row;
             }
-            frameData[0] = f;
-            
-            for(int i = 0; i < frameSize; i++){
-                frame[i][0] = audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
-                frame[i][1] = 0;
-            }
+        }
+        
+        terrainWaveform = new TerrainWaveform(clippedSize, numRows, "src/shaders/terrain_spectrum.vs", "src/shaders/terrain_spectrum.fs");
+        bloom = new Bloom(width, height);   
+    }
 
-            double a0 = 0.5f; // TODO: Move to windowing function code.
-            double a1 = 1 - a0;
-            double w;
-            for(int i = 0; i < frameSize; i++){
-                w = a0 - a1 * cos((2*M_PI*i)/frameSize);
-                frame[i][0] *= w;
-            }
+    void draw(int currentMillisecond, bool swap){
 
-            fftw_execute(plan);
-            int j = startIndex;
-            for(int i = 0; i < numVertices; i+=3){ // TODO: Handle out of bound
-                double real = frequencyBands[j][0];
-                double complex = frequencyBands[j][1];
-                frameData[0][i+1] = sqrt(real * real + complex * complex) / (frameSize/4); 
+        int numVertices = 3 * clippedSize;
 
-                double limit = 0.2f;
-                if(frameData[0][i+1] > limit) frameData[0][i+1] = limit;
-                j++;
-            }
+        float *f = frameData[numRows-1];
+        for(int i = numRows-1; i > 0; i--){
+            frameData[i] = frameData[i-1];
+        }
+        frameData[0] = f;
 
-            bloom->start();
+        float *audioFrame = new float[frameSize];
+        for(int i = 0; i < frameSize; i++){
+            audioFrame[i] = (float)audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
+        }
+        float *spectrum = new float[clippedSize];
+        audioFFT->fftMagnitudesClipped(audioFrame, spectrum, 20, 20000, sampleRate);
 
-            terrainWaveform->draw(frameData);
-
-            bloom->end();
+        int j = 0;
+        for(int i = 0; i < numVertices; i+=3){
+            frameData[0][i+1] = spectrum[j++];
         }
 
-        ~Scene3(){ // TODO: Check if all destroyed
-            delete frame;
-            delete frequencyBands;
-            for(int i = 0; i < 0; i++){
-                delete[] frameData[i]; 
-            }
-            delete[] frameData;
-            delete terrainWaveform;
-            fftw_destroy_plan(plan);
-            fftw_cleanup();
+        bloom->start();
+
+        terrainWaveform->draw(frameData);
+
+        bloom->end();
+    }
+
+    ~Scene3(){ // TODO: Check if all destroyed
+        for(int i = 0; i < 0; i++){
+            delete[] frameData[i]; 
         }
+        delete[] frameData;
+        delete terrainWaveform;
+    }
 };
 
 int main(){
@@ -289,7 +267,7 @@ int main(){
 
     glfwSetFramebufferSizeCallback(window, resize_frame_buffer_on_window);
 
-    const char* songPath = "audio/hoc.wav";
+    const char* songPath = "audio/riff.wav";
     
     ma_result result;
     ma_engine engine;
@@ -313,9 +291,9 @@ int main(){
     audioFile.printSummary();
     int sampleRate = audioFile.getSampleRate();
 
-    Scene1 waveform1(audioFile.samples, sampleRate);
-    Scene2 waveform2(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
-    Scene3 waveform3(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
+    Scene1 scene1(audioFile.samples, sampleRate);
+    Scene2 scene2(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
+    Scene3 scene3(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
 
     int choice = 1;
 
@@ -329,9 +307,9 @@ int main(){
         
         ma_int64 currentMillisecond = ma_engine_get_time_in_milliseconds(&engine);
         switch(choice){
-            case 1: waveform1.draw(currentMillisecond); break;
-            case 2: waveform2.draw(currentMillisecond); break;
-            case 3: waveform3.draw(currentMillisecond, true); break;
+            case 1: scene1.draw(currentMillisecond); break;
+            case 2: scene2.draw(currentMillisecond); break;
+            case 3: scene3.draw(currentMillisecond, true); break;
             default: break;
         }
         

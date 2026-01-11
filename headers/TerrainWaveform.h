@@ -12,11 +12,11 @@ public:
         this->numRows = numRows;
         shader = new Shader(vsPath, fsPath);
         
-        vbo = new unsigned int[numCols];
-        glGenBuffers(numCols, vbo);
+        vbo = new unsigned int[numRows];
+        glGenBuffers(numRows, vbo);
         for(int row = 0; row < numRows; row++){
             glBindBuffer(GL_ARRAY_BUFFER, vbo[row]);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(float) * numCols, NULL, GL_DYNAMIC_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * numCols, NULL, GL_DYNAMIC_DRAW);
         }
 
         // TODO : Move to transform code
@@ -33,7 +33,7 @@ public:
     }
 
     ~TerrainWaveform(){
-        glDeleteBuffers(numCols, vbo);
+        glDeleteBuffers(numRows, vbo);
         delete shader;
         delete[] vbo;
     }
@@ -43,7 +43,7 @@ public:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
         for(int row = 0; row < numRows; row++){
             glBindBuffer(GL_ARRAY_BUFFER, vbo[row]);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * numCols, vertexData[row]);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 3 * numCols, vertexData[row]);
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
             shader->use();
