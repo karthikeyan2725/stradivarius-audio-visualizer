@@ -17,15 +17,15 @@ class Scene2 {
             this->sampleRate = sampleRate;
 
             // configurations
-            frameSize = 1024 / 2;
+            frameSize = 1024 / 4;
 
             audioFFT = new AudioFFT(frameSize);
-            clippedSize = audioFFT->getClippedSize(20, 10000, sampleRate); // TODO: Not properly sizing between 20-20kHz
+            clippedSize = audioFFT->getClippedSize(20, 20000, sampleRate); 
 
             int numVertices = clippedSize * 3;
             frameData = new float[numVertices]; 
             for(int i = 0; i < numVertices; i+=3){
-                frameData[i] = ((double)i/3)/clippedSize; 
+                frameData[i] = ((double)i/3); 
                 frameData[i+1] = 0.0f;
                 frameData[i+2] = 0.0f;
             }
@@ -40,7 +40,7 @@ class Scene2 {
                 audioFrame[i] = (float)audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
             }
             float *spectrum = new float[clippedSize];
-            audioFFT->fftMagnitudesClipped(audioFrame, spectrum, 20, 10000, sampleRate);
+            audioFFT->fftMagnitudesClipped(audioFrame, spectrum, 20, 20000, sampleRate);
 
             const int numVertices = 3 * clippedSize;
             int j = 0;

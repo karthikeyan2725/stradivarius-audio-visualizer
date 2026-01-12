@@ -11,7 +11,7 @@ class AudioFFT{
     const int COMPLEX = 1;
 public:
     AudioFFT(unsigned int size){
-        this->size = size;
+        this->size = size; // TODO: Change size to twice the times, Issue
         input = new fftw_complex[size];
         output = new fftw_complex[size];
         plan = fftw_plan_dft_1d(size, input, output, FFTW_FORWARD,  FFTW_MEASURE);   
@@ -32,15 +32,15 @@ public:
 
         fftw_execute(plan);
         
-        int output_index = getIndex(startFrequency, sampleRate);
+        int start_frequency_index = getIndex(startFrequency, sampleRate);
         int clippedSize = getClippedSize(startFrequency, endFrequency, sampleRate);
         for(int i = 0; i < clippedSize; i++){
-            target[i] = magnitude(output[output_index+i]);
+            target[i] = magnitude(output[start_frequency_index+i]);
         }
     }
 
     float magnitude(const fftw_complex u){
-        return sqrt(u[REAL] * u[REAL] + u[COMPLEX] * u[COMPLEX]);
+        return sqrt(pow(u[REAL], 2) +  pow(u[COMPLEX], 2));
     }
 
     void applyHannWindow(fftw_complex *input){
@@ -57,7 +57,7 @@ public:
         return getIndex(endFrequency, sampleRate) - getIndex(startFrequency, sampleRate);
     }
 
-    int getIndex(int frequency, int sampleRate){ // TODO : Check for logic issues
-        return ceil((frequency * size) / sampleRate);
+    int getIndex(int frequency, int sampleRate){ 
+        return ceil((frequency * (size/2)) / (sampleRate));
     }
 };

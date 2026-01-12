@@ -24,6 +24,8 @@ public:
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         shader->use();
+        shader->setUniform1f("min_width", 0.5f);
+        shader->setUniform1i("total_points", numVertices);
         glPointSize(2.0f); // TODO: Add to constructor
         glDrawArrays(GL_POINTS, 0, numVertices);
         

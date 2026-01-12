@@ -11,4 +11,5 @@ class Shader{
         ~Shader();
         void setUniformMatrix4fv(const char* uniformName, glm::mat4 value);
         void setUniform1i(const char* uniformName, int value);
+        void setUniform1f(const char* uniformName, float value);
 };

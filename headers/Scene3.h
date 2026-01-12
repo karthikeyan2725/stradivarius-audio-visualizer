@@ -24,7 +24,7 @@ public:
         const float zSpace = 0.1f;
         
         audioFFT = new AudioFFT(frameSize);
-        clippedSize = audioFFT->getClippedSize(20, 20000, sampleRate); // TODO: Not properly sizing between 20-20kHz
+        clippedSize = audioFFT->getClippedSize(20, 20000, sampleRate); 
         const int numVertices = 3 * clippedSize;
         frameData = new float*[numRows]; 
         for(int row = 0; row < numRows; row++){
