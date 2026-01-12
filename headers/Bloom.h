@@ -90,13 +90,11 @@ public:
 
     void start(){
         glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
-        glClearColor(0.1f, 0.0, 0.0, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT);
     }
 
     void end(){
          glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
-            glClearColor(0.0f, 0.0, 0.0, 0.0f); 
             glClear(GL_COLOR_BUFFER_BIT);
             brightShader->use();
             glBindTexture(GL_TEXTURE_2D, texture[0]);
@@ -111,7 +109,6 @@ public:
             for(int i = 0; i < 10; i++){
                 // horizontal blur
                 glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
-                glClearColor(0.0f, 0.0, 0.0, 0.0f); 
                 glClear(GL_COLOR_BUFFER_BIT);
                 blurShader->setUniform1i("horizontal", 1);
                 glBindTexture(GL_TEXTURE_2D, texture[1]);
@@ -124,7 +121,6 @@ public:
 
                 // vertical blur
                 glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
-                glClearColor(0.0f, 0.0, 0.0, 0.0f); 
                 glClear(GL_COLOR_BUFFER_BIT);
                 blurShader->setUniform1i("horizontal", 0);
                 glBindTexture(GL_TEXTURE_2D, texture[2]);
@@ -138,7 +134,7 @@ public:
 
             // horizontal blur
             glBindFramebuffer(GL_FRAMEBUFFER, fbo[2]);
-            glClearColor(0.1f, 0.0, 0.0, 0.0f); 
+            glClear(GL_COLOR_BUFFER_BIT);
             blurShader->use();
             blurShader->setUniform1i("horizontal", 1);
             glBindTexture(GL_TEXTURE_2D, texture[1]);
@@ -148,9 +144,8 @@ public:
             glEnableVertexAttribArray(1);
             glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2*sizeof(float)));
             glDrawArrays(GL_TRIANGLES, 0, 6);
+
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        
-            glClearColor(0.1f, 0.1f, 0.1f, 1.0f); 
             glClear(GL_COLOR_BUFFER_BIT);
             blendShader->use();
             blendShader->setUniform1i("sTexture1", 0);
@@ -159,7 +154,6 @@ public:
             glBindTexture(GL_TEXTURE_2D, texture[0]);
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, texture[1]);
-            // glBindVertexArray(vao);
             glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);

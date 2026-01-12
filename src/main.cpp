@@ -86,7 +86,7 @@ int main(){
     b = &bloom;
     while(!glfwWindowShouldClose(window)){
         glClear(GL_COLOR_BUFFER_BIT);
-        glClearColor(0.0f, 0.1f, 0.0f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         
         ma_int64 currentMillisecond = ma_engine_get_time_in_milliseconds(&engine);
         if(isBloom) bloom.start();
