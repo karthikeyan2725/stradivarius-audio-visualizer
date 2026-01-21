@@ -25,7 +25,7 @@ public:
         view = glm::scale(view, glm::vec3(scaleBy));
         view = glm::rotate(view, 30.0f * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
         view = glm::rotate(view, -140.0f * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::translate(view, glm::vec3(-0.0f, 0.0f, 0.0f));
+        view = glm::translate(view, glm::vec3(0.0f, 0.0f, 0.0f));
         shader->use();
         shader->setUniformMatrix4fv("view", view);
 
@@ -38,6 +38,17 @@ public:
         delete[] vbo;
     }
 
+    void setRotation(float rotateX, float rotateY){
+        float scaleBy = 1.0f;
+        glm::mat4 view = glm::mat4(1.0f); 
+        view = glm::scale(view, glm::vec3(scaleBy));
+        view = glm::rotate(view, rotateX * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
+        view = glm::rotate(view, rotateY * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
+        // view = glm::translate(view, glm::vec3(-0.0f, 0.0f, 0.0f));
+        shader->use();
+        shader->setUniformMatrix4fv("view", view);
+    }
+
     void draw(float **vertexData){
         glEnable(GL_BLEND); 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
@@ -48,7 +59,7 @@ public:
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
             shader->use();
             shader->setUniform1i("offset", row);
-            glPointSize(1.0f);
+            glPointSize(3.0f);
             glDrawArrays(GL_POINTS, 0, numCols);
         }
 

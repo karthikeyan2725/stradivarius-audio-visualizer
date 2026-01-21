@@ -18,9 +18,9 @@ public:
         this->sampleRate = sampleRate;
 
         // Configurations
-        frameSize = 256;
+        frameSize = 64;
         numRows = 30;
-        const float xSpace = 0.5f;
+        const float xSpace = 0.1f;
         const float zSpace = 0.1f;
         
         audioFFT = new AudioFFT(frameSize);
@@ -42,32 +42,40 @@ public:
         terrainWaveform = new TerrainWaveform(clippedSize, numRows, "src/shaders/terrain_spectrum.vs", "src/shaders/terrain_spectrum.fs");   
     }
 
-    void draw(int currentMillisecond){
+    void draw(int currentMillisecond, bool swap){
+        if(swap){
+            float *f = frameData[numRows-1];
+            for(int i = numRows-1; i > 0; i--){
+                frameData[i] = frameData[i-1];
+            }
+            frameData[0] = f;
+            const float xSpace = 0.1f;
+            const float zSpace = 0.1f;
+            const int nv = 3 * clippedSize;
+            for(int row = 0; row < numRows; row++){
+                for(int i = 0; i < nv; i+=3){
+                    frameData[row][i+2] = zSpace * row;
+                }
+            }
 
-        float *f = frameData[numRows-1];
-        for(int i = numRows-1; i > 0; i--){
-            frameData[i] = frameData[i-1];
-        }
-        frameData[0] = f;
-        
-        float *audioFrame = new float[frameSize];
-        for(int i = 0; i < frameSize; i++){
-            audioFrame[i] = (float)audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
-        }
-        float *spectrum = new float[clippedSize];
-        audioFFT->fftMagnitudesClipped(audioFrame, spectrum, 20, 20000, sampleRate);
-        
-        const int numVertices = 3 * clippedSize;
-        int j = 0;
-        for(int i = 0; i < numVertices; i+=3){
-            frameData[0][i+1] = spectrum[j++] / (frameSize/4);
-            if(frameData[0][i+1] > 0.2f) frameData[0][i+1] = 0.2f;
+            float *audioFrame = new float[frameSize];
+            for(int i = 0; i < frameSize; i++){
+                audioFrame[i] = (float)audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
+            }
+            float *spectrum = new float[clippedSize];
+            audioFFT->fftMagnitudesClipped(audioFrame, spectrum, 20, 20000, sampleRate);
+            
+            const int numVertices = 3 * clippedSize;
+            int j = 0;
+            for(int i = 0; i < numVertices; i+=3){
+                frameData[0][i+1] = spectrum[j++] / (frameSize/4);
+                if(frameData[0][i+1] > 0.2f) frameData[0][i+1] = 0.2f;
+            }
+            delete[] spectrum;
+            delete[] audioFrame;
         }
 
         terrainWaveform->draw(frameData);
-
-        delete[] audioFrame;
-        delete[] spectrum;
     }
 
     ~Scene3(){ 
@@ -77,5 +85,9 @@ public:
         }
         delete[] frameData;
         delete terrainWaveform;
+    }
+
+    void setRotation(float rotateX, float rotateY){
+        terrainWaveform->setRotation(rotateX, rotateY);
     }
 };

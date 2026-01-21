@@ -6,6 +6,6 @@ uniform int offset = 0;
 out vec3 p;
 
 void main(){
-    gl_Position = view * vec4(point.x, point.y, offset * 0.005f, 1.0);
+    gl_Position = view * vec4(point.x, point.y, point.z, 1.0);
     p = point;
 }

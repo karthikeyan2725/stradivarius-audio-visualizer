@@ -9,13 +9,14 @@ out vec4 color;
 void main(){
     vec2 tex_offset = 1.0f / textureSize(sTexture, 0);
     vec3 result = texture(sTexture, fTexCoord).rgb * weight[0];
+    int blurRadius = 4;
     if(horizontal){
-        for(int i = 1; i < 5; i++){
+        for(int i = 1; i < blurRadius; i++){
             result += texture(sTexture, fTexCoord + vec2(tex_offset.x * i, 0.0f)).rgb * weight[i];
             result += texture(sTexture, fTexCoord - vec2(tex_offset.x * i, 0.0f)).rgb * weight[i];
         }
     } else{
-        for(int i = 1; i < 5; i++){
+        for(int i = 1; i < blurRadius; i++){
             result += texture(sTexture, fTexCoord + vec2( 0.0f, tex_offset.y * i)).rgb * weight[i];
             result += texture(sTexture, fTexCoord - vec2( 0.0f, tex_offset.y * i)).rgb * weight[i];
         }

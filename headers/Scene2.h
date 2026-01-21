@@ -11,6 +11,7 @@ class Scene2 {
     float *frameData; 
     CircularWaveform *circularWaveform;
     AudioFFT *audioFFT;
+    float* spectrum;
     public:
         Scene2(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
             this->audioSignal = audioSignal;
@@ -31,6 +32,7 @@ class Scene2 {
             }
             
             circularWaveform = new CircularWaveform(clippedSize, "src/shaders/circular_spectrum.vs", "src/shaders/circular_spectrum.fs");
+            spectrum = new float[clippedSize];
         }
 
         void draw(int currentMillisecond){
@@ -39,7 +41,6 @@ class Scene2 {
             for(int i = 0; i < frameSize; i++){
                 audioFrame[i] = (float)audioSignal[0][(currentMillisecond/1000.0f) * sampleRate + i];
             }
-            float *spectrum = new float[clippedSize];
             audioFFT->fftMagnitudesClipped(audioFrame, spectrum, 20, 20000, sampleRate);
 
             const int numVertices = 3 * clippedSize;
@@ -52,10 +53,10 @@ class Scene2 {
             circularWaveform->draw(frameData);
 
             delete[] audioFrame;
-            delete[] spectrum;
         }
-
+        
         ~Scene2(){
+            delete[] spectrum;
             delete[] frameData;
             delete circularWaveform;
             delete audioFFT;
