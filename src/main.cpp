@@ -18,7 +18,16 @@ void resize_frame_buffer_on_window(GLFWwindow* window, int width, int height){
     if(b != nullptr) b->updateSize(width, height);
 }
 
-int main(){
+int main(int argc, char** argv){
+    const char* songPath;
+    if(argc < 2) {
+        std::cout << "Please specify song path" << std::endl;
+        return -1;
+    }
+
+    songPath = argv[1];
+    std::cout << "Playing : " << songPath << std::endl;
+
     int glfwInitialized = glfwInit();
     if(glfwInitialized == GLFW_FALSE){
         std::cout << "Failed to Initalize GLFW" << std::endl;
@@ -49,8 +58,6 @@ int main(){
 
     glfwSetFramebufferSizeCallback(window, resize_frame_buffer_on_window);
 
-    const char* songPath = "audio/escape.wav";
-    
     ma_result result;
     ma_engine engine;
     ma_sound sound;
@@ -74,8 +81,8 @@ int main(){
     int sampleRate = audioFile.getSampleRate();
 
     Scene1 scene1(audioFile.samples, sampleRate);
-    Scene2 scene2(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
-    Scene3 scene3(audioFile.samples, sampleRate, frameBufferWidth, frameBufferHeight);
+    Scene2 scene2(audioFile.samples, sampleRate);
+    Scene3 scene3(audioFile.samples, sampleRate);
     
     int choice = 1;
     bool isBloom = false;
@@ -124,12 +131,10 @@ int main(){
     float rotateX = 20.0f;
     float rotateY = 0;
     float lastSecond = 0;
-    glEnable( GL_DEPTH_CLAMP ) ;
+    glEnable( GL_DEPTH_CLAMP ) ; // No clipping of objects
     while(!glfwWindowShouldClose(window)){
         glClear(GL_COLOR_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        // glEnable(GL_BLEND);
-        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);   
         
         if(isBloom) bloom.start();
         glBindBuffer(GL_ARRAY_BUFFER, bgVBO);
@@ -150,13 +155,11 @@ int main(){
                     scene3.draw(currentMillisecond, true);
                     lastSecond = currentSecond;
                 } else {
-                    scene3.draw(currentMillisecond, true);
+                    scene3.draw(currentMillisecond, false);
                 }
                 break;
             default: break;
         }
-        // glEnable(GL_BLEND);
-        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         if(isBloom) bloom.end(0);
         
         if(glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) choice = 1;
@@ -164,15 +167,10 @@ int main(){
         if(glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) choice = 3;
         if(glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) isBloom = true;
         if(glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) isBloom = false;
-        if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) rotateX+=0.1;
-        if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) rotateX-=0.1;
-        if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) rotateY-=0.05;
-        if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) rotateY+=0.05;
-
-        if(choice == 3){
-            // rotateY-=0.05f;
-            scene3.setRotation(rotateX, rotateY);
-        }
+        if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) scene3.rotateBy(0.1f, 0.0f);
+        if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) scene3.rotateBy(-0.1f, 0.0f);
+        if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) scene3.rotateBy(0.0f, -0.05f);
+        if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) scene3.rotateBy(0.0f, 0.05f);
 
         glfwPollEvents();
         glfwSwapBuffers(window);

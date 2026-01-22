@@ -6,4 +6,4 @@ build:
 clean:
 	rm ./target
 run:
-	./target/app
+	./target/app ./audio/escape.wav

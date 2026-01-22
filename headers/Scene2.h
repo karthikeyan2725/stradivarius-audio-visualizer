@@ -13,7 +13,7 @@ class Scene2 {
     AudioFFT *audioFFT;
     float* spectrum;
     public:
-        Scene2(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
+        Scene2(std::vector<std::vector<double>> audioSignal, int sampleRate){
             this->audioSignal = audioSignal;
             this->sampleRate = sampleRate;
 

@@ -13,7 +13,7 @@ class Scene3 {
     TerrainWaveform *terrainWaveform;
     AudioFFT *audioFFT; 
 public:
-    Scene3(std::vector<std::vector<double>> audioSignal, int sampleRate, int width, int height){
+    Scene3(std::vector<std::vector<double>> audioSignal, int sampleRate){
         this->audioSignal = audioSignal;
         this->sampleRate = sampleRate;
 
@@ -87,7 +87,7 @@ public:
         delete terrainWaveform;
     }
 
-    void setRotation(float rotateX, float rotateY){
-        terrainWaveform->setRotation(rotateX, rotateY);
+    void rotateBy(float x, float y){
+        terrainWaveform->rotateBy(x, y);
     }
 };

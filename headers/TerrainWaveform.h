@@ -6,12 +6,17 @@ unsigned int numCols;
 unsigned int numRows;
 unsigned int *vbo;
 Shader *shader;
+float rotateX, rotateY;
+bool rotationChanged;
 public:
     TerrainWaveform(int numCols, int numRows, const char* vsPath, const char* fsPath){
         this->numCols = numCols;
         this->numRows = numRows;
         shader = new Shader(vsPath, fsPath);
         
+        rotateX = 0.0f;
+        rotateY = 0.0f;
+
         vbo = new unsigned int[numRows];
         glGenBuffers(numRows, vbo);
         for(int row = 0; row < numRows; row++){
@@ -23,8 +28,8 @@ public:
         float scaleBy = 2.0f;
         glm::mat4 view = glm::mat4(1.0f); 
         view = glm::scale(view, glm::vec3(scaleBy));
-        view = glm::rotate(view, 30.0f * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
-        view = glm::rotate(view, -140.0f * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
+        view = glm::rotate(view, rotateX * (3.14f / 180), glm::vec3(1.0f, 0.0f, 0.0f));
+        view = glm::rotate(view, rotateY * (3.14f / 180), glm::vec3(0.0f, 1.0f, 0.0f));
         view = glm::translate(view, glm::vec3(0.0f, 0.0f, 0.0f));
         shader->use();
         shader->setUniformMatrix4fv("view", view);
@@ -38,7 +43,7 @@ public:
         delete[] vbo;
     }
 
-    void setRotation(float rotateX, float rotateY){
+    void setShaderRotation(){
         float scaleBy = 1.0f;
         glm::mat4 view = glm::mat4(1.0f); 
         view = glm::scale(view, glm::vec3(scaleBy));
@@ -49,9 +54,21 @@ public:
         shader->setUniformMatrix4fv("view", view);
     }
 
+    void rotateBy(float x, float y){
+        rotationChanged = true;
+        rotateX += x;
+        rotateY += y;
+    }
+
     void draw(float **vertexData){
         glEnable(GL_BLEND); 
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+
+        if(rotationChanged){
+            setShaderRotation();
+            rotationChanged = false;
+        }
+
         for(int row = 0; row < numRows; row++){
             glBindBuffer(GL_ARRAY_BUFFER, vbo[row]);
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float) * 3 * numCols, vertexData[row]);
