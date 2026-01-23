@@ -12,6 +12,7 @@
 
 #include <Texture.h>
 #include <FrameBuffer.h>
+#include <Mesh.h>
 
 #define APPNAME "Stradivarius"
 
@@ -136,8 +137,32 @@ int main(int argc, char** argv){
     int choice = 1;
     bool isBloom = true;
 
-    glEnable( GL_DEPTH_CLAMP ) ; // No clipping of objects
+    glEnable(GL_DEPTH_CLAMP); // No clipping of objects
     glEnable(GL_DEPTH_BUFFER_BIT);
+
+    // Testing Mesh class
+    std::vector<Vertex> vertices = {
+        Vertex{glm::vec3(0.5f,  0.5f, 0.0f), glm::vec2(1.0f, 1.0f)},   
+        Vertex{glm::vec3(0.5f, -0.5f, 0.0f), glm::vec2(1.0f, 0.0f)},   
+        Vertex{glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec2(0.0f, 0.0f)},  
+        Vertex{glm::vec3(-0.5f,  0.5f, 0.0f), glm::vec2(0.0f, 1.0f)}    
+    };
+
+    std::vector<unsigned int> indices;
+    indices.push_back(0);
+    indices.push_back(1);
+    indices.push_back(3);
+    indices.push_back(1);
+    indices.push_back(2);
+    indices.push_back(3);
+
+    std::vector<Texture*> textures;
+    Texture pianoTexture = Texture::load("images/piano.jpg", GL_LINEAR, GL_CLAMP_TO_EDGE);
+    textures.push_back(&pianoTexture);
+    
+    Shader meshShader("src/shaders/mesh.vs", "src/shaders/mesh.fs");
+
+    Mesh mesh(vertices, indices, textures);
 
     while(!glfwWindowShouldClose(window)){
         if(handleSizeChange){
@@ -223,6 +248,10 @@ int main(int argc, char** argv){
             break;
             default: break;
         }
+
+        // Testing mesh 
+        mesh.draw(&meshShader);
+        glBindVertexArray(vao);
         
         waterOffset += 0.001f;
         waterOffset = fmodf(waterOffset, 1);
