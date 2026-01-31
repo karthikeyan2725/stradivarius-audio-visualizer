@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <stb_image.h>
 #include <iostream>
+#include <memory>
 
 class Texture{
     unsigned int id;
@@ -26,10 +27,10 @@ public:
     }
 
     ~Texture(){
-        glDeleteTextures(1, &id);
+        // glDeleteTextures(1, &id);
     }
 
-    static Texture load(const char* filePath, int filterMode, int wrapMode){
+    static std::shared_ptr<Texture> load(const char* filePath, int filterMode, int wrapMode){
         stbi_set_flip_vertically_on_load(true);  
         int width, height, nChannels;
         unsigned char* image_data = stbi_load(filePath, &width, &height, &nChannels, 0);
@@ -38,7 +39,7 @@ public:
             std::cout << "Failed to load texture (" << filePath << ")" << std::endl;
         }
 
-        Texture generatedTexture(width, height, GL_RGB, GL_RGB, filterMode, wrapMode, image_data);
+        std::shared_ptr<Texture> generatedTexture = std::make_shared<Texture>(width, height, GL_RGB, GL_RGB, filterMode, wrapMode, image_data);
         return generatedTexture;
     }
 

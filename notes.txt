@@ -26,3 +26,5 @@ vec4 for glPosition
 
 cpp:
 classes, pointers
+
+Assimp:  cmake -S ./installs/assimp -B ./compiled/assimp -DBUILD_SHARED_LIBS=OFF -DASSIMP_BUILD_ZLIB=ON

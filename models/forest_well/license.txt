@@ -1,0 +1,11 @@
+Model Information:
+* title:	Forest Well
+* source:	https://sketchfab.com/3d-models/forest-well-36191f7215cc4213a9707c97809c2211
+* author:	Sam (https://sketchfab.com/rawpuwnzl)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Forest Well" (https://sketchfab.com/3d-models/forest-well-36191f7215cc4213a9707c97809c2211) by Sam (https://sketchfab.com/rawpuwnzl) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
