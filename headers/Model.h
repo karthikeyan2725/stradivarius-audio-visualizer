@@ -164,4 +164,14 @@ public:
         // for(int i = meshes.size()-1; i >=0; i--) meshes[i].draw(shader);
         for(Mesh mesh: meshes) mesh.draw(shader, instanceCount);
     }
+
+    void draw(std::shared_ptr<Shader> shader){
+        // for(int i = meshes.size()-1; i >=0; i--) meshes[i].draw(shader);
+        for(Mesh mesh: meshes) mesh.draw(shader);
+    }
+
+    void draw(std::shared_ptr<Shader> shader, int instanceCount){
+        // for(int i = meshes.size()-1; i >=0; i--) meshes[i].draw(shader);
+        for(Mesh mesh: meshes) mesh.draw(shader, instanceCount);
+    }
 };

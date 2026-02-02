@@ -85,4 +85,40 @@ public:
         glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr, instanceCount);
         glBindVertexArray(0);
     }
+
+    void draw(std::shared_ptr<Shader> shader){
+        shader->use();
+        int number = 0;
+        for(std::shared_ptr<Texture> texture: textures){
+            std::string texName = "tex" + std::to_string(number); 
+            shader->setUniform1i(texName.c_str(), number);
+            texture->bind(number);
+            number++;
+        }
+        
+        if(textures.size() == 0) shader->setUniform1i("hasTexture", 0);
+        else shader->setUniform1i("hasTexture", 1);
+
+        glBindVertexArray(vao);
+        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr);
+        glBindVertexArray(0);
+    } 
+
+    void draw(std::shared_ptr<Shader> shader, int instanceCount){
+        shader->use();
+        int number = 0;
+        for(std::shared_ptr<Texture> texture: textures){
+            std::string texName = "tex" + std::to_string(number); 
+            shader->setUniform1i(texName.c_str(), number);
+            texture->bind(number);
+            number++;
+        }
+        
+        if(textures.size() == 0) shader->setUniform1i("hasTexture", 0);
+        else shader->setUniform1i("hasTexture", 1);
+
+        glBindVertexArray(vao);
+        glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, nullptr, instanceCount);
+        glBindVertexArray(0);
+    }
 };
