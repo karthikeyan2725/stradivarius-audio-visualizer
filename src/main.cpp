@@ -15,6 +15,7 @@
 #include <FrameBuffer.h>
 #include <Mesh.h>
 #include <Model.h>
+#include <Fractal.h>
 
 #define APPNAME "Stradivarius"
 
@@ -169,6 +170,31 @@ int main(int argc, char** argv){
     // Start Playing Audio
     ma_sound_start(&sound);
 
+    // Fractals
+    Shader fractalShader("src/shaders/fractal.vs", "src/shaders/fractal.fs");
+
+    unsigned char fractalTextureData1[3 * frameBufferWidth * frameBufferHeight];
+    glm::vec2 c = glm::vec2(0.1f, 0.5f);
+
+    int k;
+    for(int i = 0; i < frameBufferHeight; i++){
+        for(int j = 0; j < frameBufferWidth; j++){
+            glm::vec2 z0((float)i / frameBufferHeight, (float)j / frameBufferWidth);
+            int iteration = Fractal::getIterationCount(z0, c);
+            // std::cout << z0.x << " "<< z0.y << std::endl;
+            // std::cout << iteration << " ";
+            
+            int brightness = (iteration / 50.0f) * 256;
+            
+            fractalTextureData1[k]  = brightness; // RED
+            fractalTextureData1[k+1] = brightness; // GREEN
+            fractalTextureData1[k+2] = brightness; // BLUE
+            k+=3;
+        }
+    }
+    
+    Texture fractalTexture(frameBufferWidth, frameBufferHeight, GL_RGB, GL_RGB, GL_LINEAR, GL_CLAMP_TO_EDGE, fractalTextureData1);
+    
     // Rendering Loop
     while(!glfwWindowShouldClose(window)){
         // Handle size changes
@@ -186,7 +212,7 @@ int main(int argc, char** argv){
         else waterFrameBuffer.bind();
 
         // Render Background
-        if(choice != 4){
+        if(choice != 4 && choice != 5){
             glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
             glEnableVertexAttribArray(0);
             glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(0));
@@ -219,6 +245,19 @@ int main(int argc, char** argv){
                 scene4.draw(bZ, tZ, (float)frameBufferWidth / frameBufferHeight, boxRotation, -tunnelRotation);
                 glBindVertexArray(vao); // TODO: Add VAO to all
             }
+            break;
+            case 5: {
+                // Fractal
+                fractalTexture.bind(6);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(0));
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+                fractalShader.use();
+                fractalShader.setUniform1i("sTexture", 6);
+                glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
             default: break;
         }
 
@@ -239,18 +278,20 @@ int main(int argc, char** argv){
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         // Render Water Ripple
-        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(0));
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-        glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, waterFrameBuffer.getColorAttachment());
-        waterShader.use();
-        waterShader.setUniform1i("dudvTexture", 4);
-        waterShader.setUniform1i("reflection", 5);
-        waterShader.setUniform1f("offset", waterOffset);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        if(choice != 4 && choice != 5){
+            glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(0));
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+            glActiveTexture(GL_TEXTURE5);
+            glBindTexture(GL_TEXTURE_2D, waterFrameBuffer.getColorAttachment());
+            waterShader.use();
+            waterShader.setUniform1i("dudvTexture", 4);
+            waterShader.setUniform1i("reflection", 5);
+            waterShader.setUniform1f("offset", waterOffset);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
 
         // Update Things
         waterOffset += 0.001f;
@@ -261,6 +302,7 @@ int main(int argc, char** argv){
         if(glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) choice = 2;
         if(glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) choice = 3;
         if(glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) choice = 4;
+        if(glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) choice = 5;
         if(glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) isBloom = true;
         if(glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) isBloom = false;
         if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) rotateX += 1.0f;
