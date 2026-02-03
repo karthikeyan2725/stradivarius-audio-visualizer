@@ -75,3 +75,8 @@ void Shader::setUniform3fv(const char* uniformName, const glm::vec3 &vec){
     int uniformLoc = glGetUniformLocation(shaderProgram, uniformName);
     glUniform3fv(uniformLoc, 1, &vec[0]);
 }
+
+void Shader::setUniform2fv(const char* uniformName, const glm::vec2 &vec){
+    int uniformLoc = glGetUniformLocation(shaderProgram, uniformName);
+    glUniform2fv(uniformLoc, 1, &vec[0]);
+}

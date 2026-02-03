@@ -144,7 +144,7 @@ int main(int argc, char** argv){
     // All Configurations
     // Common Config
     float waterOffset = 0.0f;
-    int choice = 1;
+    int choice = 5;
     bool isBloom = true;
     
     // Scene3 Configs
@@ -170,31 +170,30 @@ int main(int argc, char** argv){
     // Start Playing Audio
     ma_sound_start(&sound);
 
-    // Fractals
-    Shader fractalShader("src/shaders/fractal.vs", "src/shaders/fractal.fs");
+    // Gpu side Fractals
+    std::vector<Vertex> fractalVertices;
+    std::vector<unsigned int> fractalIndices;
+    std::vector<std::shared_ptr<Texture>> fractalTexture;
 
-    unsigned char fractalTextureData1[3 * frameBufferWidth * frameBufferHeight];
-    glm::vec2 c = glm::vec2(0.1f, 0.5f);
+    fractalVertices.push_back({glm::vec3(-1.0f, -1.0f, 0.0f)}); // A = 0
+    fractalVertices.push_back({glm::vec3( 1.0f, -1.0f, 0.0f)}); // B = 1
+    fractalVertices.push_back({glm::vec3( 1.0f,  1.0f, 0.0f)}); // C = 2
+    fractalVertices.push_back({glm::vec3(-1.0f,  1.0f, 0.0f)}); // D = 3
+    // ABC
+    fractalIndices.push_back(0);
+    fractalIndices.push_back(1);
+    fractalIndices.push_back(2);
+    // CDA 
+    fractalIndices.push_back(2);
+    fractalIndices.push_back(3);
+    fractalIndices.push_back(0);
 
-    int k;
-    for(int i = 0; i < frameBufferHeight; i++){
-        for(int j = 0; j < frameBufferWidth; j++){
-            glm::vec2 z0((float)i / frameBufferHeight, (float)j / frameBufferWidth);
-            int iteration = Fractal::getIterationCount(z0, c);
-            // std::cout << z0.x << " "<< z0.y << std::endl;
-            // std::cout << iteration << " ";
-            
-            int brightness = (iteration / 50.0f) * 256;
-            
-            fractalTextureData1[k]  = brightness; // RED
-            fractalTextureData1[k+1] = brightness; // GREEN
-            fractalTextureData1[k+2] = brightness; // BLUE
-            k+=3;
-        }
-    }
+    Mesh fractalMesh(fractalVertices, fractalIndices, fractalTexture);
     
-    Texture fractalTexture(frameBufferWidth, frameBufferHeight, GL_RGB, GL_RGB, GL_LINEAR, GL_CLAMP_TO_EDGE, fractalTextureData1);
-    
+    std::shared_ptr<Shader> fractalShader = std::make_shared<Shader>("src/shaders/fractal_gpu.vs", "src/shaders/fractal_gpu.fs");
+
+    glm::vec2 constant = glm::vec2(0.1f, 0.5f);
+
     // Rendering Loop
     while(!glfwWindowShouldClose(window)){
         // Handle size changes
@@ -247,16 +246,15 @@ int main(int argc, char** argv){
             }
             break;
             case 5: {
-                // Fractal
-                fractalTexture.bind(6);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(0));
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-                fractalShader.use();
-                fractalShader.setUniform1i("sTexture", 6);
-                glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-                glDrawArrays(GL_TRIANGLES, 0, 6);
+                // fractal gpu
+                fractalShader->use();
+                fractalShader->setUniform2fv("constant", constant);
+                fractalMesh.draw(fractalShader);
+                glBindVertexArray(vao);
+
+                // update constant
+                constant += glm::vec2(0.0001f, -0.0001f);
+                std::cout << "Constant = " << constant.x << "+" << constant.y << "i" << std::endl;
             }
             default: break;
         }
