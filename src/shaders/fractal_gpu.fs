@@ -3,12 +3,13 @@
 in vec4 gl_FragCoord;
 uniform int maxIterations = 500;
 uniform vec2 constant;
+uniform float width;
 out vec4 color;
 
 void main(){
     int iteration = 0;
     float absVal, real, img;
-    vec2 zn = gl_FragCoord.xy / 900;
+    vec2 zn = gl_FragCoord.xy / width; // TODO: Rewrite proper zoom to center
     
     float i = 0;
     while(i < maxIterations){

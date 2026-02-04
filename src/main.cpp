@@ -194,6 +194,8 @@ int main(int argc, char** argv){
 
     glm::vec2 constant = glm::vec2(-0.5341f, 0.146f);
 
+    float fractalWidth = frameBufferWidth;
+
     // Rendering Loop
     while(!glfwWindowShouldClose(window)){
         // Handle size changes
@@ -249,6 +251,7 @@ int main(int argc, char** argv){
                 // fractal gpu
                 fractalShader->use();
                 fractalShader->setUniform2fv("constant", constant);
+                fractalShader->setUniform1f("width", fractalWidth);
                 fractalMesh.draw(fractalShader);
                 glBindVertexArray(vao);
 
@@ -362,10 +365,15 @@ int main(int argc, char** argv){
             if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) scene3.rotateBy(0.0f, 0.05f);
         } else if(choice == 5){
             float updateAmount = 0.001f;
+            // Traverse Fractal Space
             if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) constant -= glm::vec2(0.0f, updateAmount);
             if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) constant += glm::vec2(0.0f, updateAmount);
             if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) constant += glm::vec2(updateAmount, 0.0f);
-            if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) constant -= glm::vec2(updateAmount, 0.0f);       
+            if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) constant -= glm::vec2(updateAmount, 0.0f);  
+            
+            // Zoom
+            if(glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) fractalWidth *= 1.01;  
+            if(glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) fractalWidth *= 0.99;  
         }
         glfwPollEvents();
         glfwSwapBuffers(window);
