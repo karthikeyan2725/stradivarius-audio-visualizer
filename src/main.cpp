@@ -192,7 +192,7 @@ int main(int argc, char** argv){
     
     std::shared_ptr<Shader> fractalShader = std::make_shared<Shader>("src/shaders/fractal_gpu.vs", "src/shaders/fractal_gpu.fs");
 
-    glm::vec2 constant = glm::vec2(0.1f, 0.5f);
+    glm::vec2 constant = glm::vec2(-0.5341f, 0.146f);
 
     // Rendering Loop
     while(!glfwWindowShouldClose(window)){
@@ -253,7 +253,7 @@ int main(int argc, char** argv){
                 glBindVertexArray(vao);
 
                 // update constant
-                constant += glm::vec2(0.0001f, -0.0001f);
+                // constant += glm::vec2(0.0001f , -0.0001f);
                 std::cout << "Constant = " << constant.x << "+" << constant.y << "i" << std::endl;
             }
             default: break;
@@ -355,11 +355,18 @@ int main(int argc, char** argv){
             bZ -= 0.1f;
             std::cout << "bZ = " << bZ << std::endl;
         }
-        if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) scene3.rotateBy(0.1f, 0.0f);
-        if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) scene3.rotateBy(-0.1f, 0.0f);
-        if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) scene3.rotateBy(0.0f, -0.05f);
-        if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) scene3.rotateBy(0.0f, 0.05f);
-
+        if(choice == 3){
+            if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) scene3.rotateBy(0.1f, 0.0f);
+            if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) scene3.rotateBy(-0.1f, 0.0f);
+            if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) scene3.rotateBy(0.0f, -0.05f);
+            if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) scene3.rotateBy(0.0f, 0.05f);
+        } else if(choice == 5){
+            float updateAmount = 0.001f;
+            if(glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) constant -= glm::vec2(0.0f, updateAmount);
+            if(glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) constant += glm::vec2(0.0f, updateAmount);
+            if(glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) constant += glm::vec2(updateAmount, 0.0f);
+            if(glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) constant -= glm::vec2(updateAmount, 0.0f);       
+        }
         glfwPollEvents();
         glfwSwapBuffers(window);
     }
