@@ -1,0 +1,72 @@
+[
+  {
+    "file": "./src/glad.c",
+    "arguments": [
+      "gcc",
+      "-c",
+      "./src/glad.c",
+      "./src/shaders",
+      "-I",
+      "./include",
+      "-I",
+      "./headers"
+    ],
+    "directory": "/run/media/karthik/Shared Volume/1_projects/1_dev/strad_audio_visualizer"
+  },
+  {
+    "file": "./src/main.cpp",
+    "arguments": [
+      "gcc",
+      "-c",
+      "./src/main.cpp",
+      "./src/shaders",
+      "-I",
+      "./include",
+      "-I",
+      "./headers"
+    ],
+    "directory": "/run/media/karthik/Shared Volume/1_projects/1_dev/strad_audio_visualizer"
+  },
+  {
+    "file": "./src/miniaudio.c",
+    "arguments": [
+      "gcc",
+      "-c",
+      "./src/miniaudio.c",
+      "./src/shaders",
+      "-I",
+      "./include",
+      "-I",
+      "./headers"
+    ],
+    "directory": "/run/media/karthik/Shared Volume/1_projects/1_dev/strad_audio_visualizer"
+  },
+  {
+    "file": "./src/Shader.cpp",
+    "arguments": [
+      "gcc",
+      "-c",
+      "./src/Shader.cpp",
+      "./src/shaders",
+      "-I",
+      "./include",
+      "-I",
+      "./headers"
+    ],
+    "directory": "/run/media/karthik/Shared Volume/1_projects/1_dev/strad_audio_visualizer"
+  },
+  {
+    "file": "./src/stb_image.cpp",
+    "arguments": [
+      "gcc",
+      "-c",
+      "./src/shaders",
+      "./src/stb_image.cpp",
+      "-I",
+      "./include",
+      "-I",
+      "./headers"
+    ],
+    "directory": "/run/media/karthik/Shared Volume/1_projects/1_dev/strad_audio_visualizer"
+  }
+]
